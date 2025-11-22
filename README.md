@@ -134,51 +134,46 @@ This ensures the books always balance and profitability is accurate in real-time
 
 ## ✨ Core Features
 
-### 📦 Inventory Management
+**Inventory Management**
+- Product Catalog: SKU, description, category, pricing, vendor mapping
+- Real-Time Quantities: Track available, committed, and on-order inventory
+- Multi-Location Support: Manage inventory across warehouses, stores, or bins
+- FIFO Cost Layers: Automatic cost tracking for accurate COGS
+- Reorder Points: Low inventory alerts and automatic reorder suggestions
+- Inventory Adjustments: Record shrinkage, damage, and physical counts
 
-- **Product Catalog**: SKU, description, category, pricing, vendor mapping
-- **Real-Time Quantities**: Track available, committed, and on-order inventory
-- **Multi-Location Support**: Manage inventory across warehouses, stores, or bins
-- **FIFO Cost Layers**: Automatic cost tracking for accurate COGS
-- **Reorder Points**: Low inventory alerts and automatic reorder suggestions
-- **Inventory Adjustments**: Record shrinkage, damage, and physical counts
+**Procurement & Vendor Management**
+- Vendor Catalog: Manage suppliers with contact info, terms, and lead times
+- Purchase Orders: Create, approve, and track POs through fulfillment
+- Receiving Workflow: Record receipts, match to POs, update cost layers
+- Partial Shipments: Handle split deliveries and backorders
+- Vendor Performance: Track on-time delivery, cost trends, and reliability
+- Purchase History: Complete audit trail of all vendor transactions
 
-### 🚚 Procurement & Vendor Management
+**Sales & Order Management**
+- Sales Order Processing: Record customer orders and reservations
+- Inventory Allocation: Commit inventory to orders before shipment
+- Profit Calculation: Real-time profit margins using FIFO costs
+- Order Fulfillment: Pick, pack, ship workflow with inventory updates
+- Customer Management: Track buyers, shipping addresses, and order history
+- Sales Analytics: Revenue trends, product performance, customer insights
 
-- **Vendor Catalog**: Manage suppliers with contact info, terms, and lead times
-- **Purchase Orders**: Create, approve, and track POs through fulfillment
-- **Receiving Workflow**: Record receipts, match to POs, update cost layers
-- **Partial Shipments**: Handle split deliveries and backorders
-- **Vendor Performance**: Track on-time delivery, cost trends, and reliability
-- **Purchase History**: Complete audit trail of all vendor transactions
+**Financial Accounting**
+- Double-Entry Ledger: Complete transaction history with balanced entries
+- COGS Automation: Accurate cost of goods sold calculated on every sale
+- P&L Reporting: Revenue, COGS, gross profit, and operating expenses
+- Inventory Valuation: Real-time asset value based on FIFO cost layers
+- Accounts Payable: Track vendor invoices and payment obligations
+- Accounts Receivable: Manage customer payments and outstanding balances
 
-### Sales & Order Management
+**Security & Multi-User**
+- User Authentication: Secure registration and login with bcrypt (from Perfect Books)
+- Session Management: Flask-Login for secure session handling
+- Data Isolation: Complete segregation - users can only see their own data
+- Role-Based Access: Support for multiple users with different permission levels
+- Audit Trail: Immutable transaction log for compliance
 
-- **Sales Order Processing**: Record customer orders and reservations
-- **Inventory Allocation**: Commit inventory to orders before shipment
-- **Profit Calculation**: Real-time profit margins using FIFO costs
-- **Order Fulfillment**: Pick, pack, ship workflow with inventory updates
-- **Customer Management**: Track buyers, shipping addresses, and order history
-- **Sales Analytics**: Revenue trends, product performance, customer insights
-
-### Financial Accounting
-
-- **Double-Entry Ledger**: Complete transaction history with balanced entries
-- **COGS Automation**: Accurate cost of goods sold calculated on every sale
-- **P&L Reporting**: Revenue, COGS, gross profit, and operating expenses
-- **Inventory Valuation**: Real-time asset value based on FIFO cost layers
-- **Accounts Payable**: Track vendor invoices and payment obligations
-- **Accounts Receivable**: Manage customer payments and outstanding balances
-
-### Security & Multi-User
-
-- **User Authentication**: Secure registration and login with bcrypt (from Perfect Books)
-- **Session Management**: Flask-Login for secure session handling
-- **Data Isolation**: Complete segregation - users can only see their own data
-- **Role-Based Access**: Support for multiple users with different permission levels
-- **Audit Trail**: Immutable transaction log for compliance
-
-## Tech Stack
+## 🛠️ Tech Stack
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
