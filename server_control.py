@@ -18,9 +18,8 @@ class ServerControlPanel:
         self.root.geometry("800x600")
         self.root.resizable(True, True)
 
-        # Server process handles
+        # Server process handle
         self.flask_process = None
-        self.frontend_process = None
 
         # Setup UI
         self.setup_ui()
@@ -28,6 +27,37 @@ class ServerControlPanel:
         # Set working directory to script location
         self.project_dir = Path(__file__).parent
         os.chdir(self.project_dir)
+
+        # Check for required dependencies
+        self.check_dependencies()
+
+    def check_dependencies(self):
+        """Check if required Python packages are installed."""
+        try:
+            # These are the new packages required for Google OAuth
+            import requests
+            from google.oauth2 import credentials
+            from google_auth_oauthlib.flow import Flow
+            self.log("✅ All required Python dependencies are installed.")
+            return True
+        except ImportError as e:
+            self.log("=" * 60)
+            self.log(f"❌ ERROR: A required Python package is missing: '{e.name}'")
+            self.log("This is likely because the new dependencies for Google Login were not installed.")
+            self.log("\nINSTRUCTIONS:")
+            self.log("1. Close this window.")
+            self.log("2. Open a terminal or command prompt.")
+            self.log(f"3. Navigate to this directory: {self.project_dir}")
+            self.log("4. Run the following command:")
+            self.log(f"   pip install -r requirements.txt")
+            self.log("5. Restart this Server Control Panel.")
+            self.log("=" * 60)
+            
+            # Update UI to reflect the error
+            self.start_btn.config(state=tk.DISABLED)
+            self.reset_btn.config(state=tk.DISABLED)
+            self.update_status("● Error: Missing Dependencies", "#ef4444")
+            return False
 
     def setup_ui(self):
         # Title
@@ -67,7 +97,7 @@ class ServerControlPanel:
         # Start Button
         self.start_btn = tk.Button(
             control_frame,
-            text="▶ Start Servers",
+            text="▶ Start Server",
             bg="#10b981",
             fg="white",
             command=self.start_servers,
@@ -78,7 +108,7 @@ class ServerControlPanel:
         # Stop Button
         self.stop_btn = tk.Button(
             control_frame,
-            text="⏹ Stop Servers",
+            text="⏹ Stop Server",
             bg="#ef4444",
             fg="white",
             command=self.stop_servers,
@@ -90,7 +120,7 @@ class ServerControlPanel:
         # Reset Button
         self.reset_btn = tk.Button(
             control_frame,
-            text="🔄 Reset Servers",
+            text="🔄 Reset Server",
             bg="#f59e0b",
             fg="white",
             command=self.reset_servers,
@@ -124,7 +154,7 @@ class ServerControlPanel:
 
         self.status_label = tk.Label(
             status_frame,
-            text="● Servers Stopped",
+            text="● Server Stopped",
             font=("Arial", 10),
             bg="#f3f4f6",
             fg="#ef4444"
@@ -137,7 +167,7 @@ class ServerControlPanel:
 
         tk.Label(
             urls_frame,
-            text="Backend: http://127.0.0.1:5000  |  Frontend: http://localhost:8000",
+            text="Application: http://localhost:5000",
             font=("Arial", 9),
             bg="#f3f4f6",
             fg="#6b7280"
@@ -176,9 +206,9 @@ class ServerControlPanel:
         self.status_label.config(text=text, fg=color)
 
     def start_servers(self):
-        """Start both Flask and Frontend servers"""
+        """Start Flask server (serves both backend and frontend)"""
         self.log("=" * 60)
-        self.log("Starting Artifact Live Servers...")
+        self.log("Starting Artifact Live Server...")
         self.log("=" * 60)
 
         try:
@@ -188,8 +218,8 @@ class ServerControlPanel:
                 self.log("Please create .env file with your database configuration.")
                 return
 
-            # Start Flask Backend
-            self.log("\n▶ Starting Flask Backend on port 5000...")
+            # Start Flask (serves both backend API and frontend files)
+            self.log("\n▶ Starting Flask Application on port 5000...")
             self.flask_process = subprocess.Popen(
                 [sys.executable, 'app.py'],
                 stdout=subprocess.PIPE,
@@ -206,34 +236,15 @@ class ServerControlPanel:
                 daemon=True
             ).start()
 
-            # Start Frontend Server
-            self.log("▶ Starting Frontend Server on port 8000...")
-            self.frontend_process = subprocess.Popen(
-                [sys.executable, '-m', 'http.server', '8000'],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-
-            # Start reading Frontend output in separate thread
-            threading.Thread(
-                target=self.read_output,
-                args=(self.frontend_process, "Frontend"),
-                daemon=True
-            ).start()
-
             # Update UI
             self.start_btn.config(state=tk.DISABLED)
             self.stop_btn.config(state=tk.NORMAL)
             self.reset_btn.config(state=tk.NORMAL)
             self.browser_btn.config(state=tk.NORMAL)
-            self.update_status("● Servers Running", "#10b981")
+            self.update_status("● Server Running", "#10b981")
 
-            self.log("\n✅ Both servers started successfully!")
-            self.log("📌 Frontend: http://localhost:8000")
-            self.log("📌 Backend:  http://127.0.0.1:5000")
+            self.log("\n✅ Server started successfully!")
+            self.log("📌 Application: http://localhost:5000")
             self.log("\nClick 'Open in Browser' to launch the application.")
 
         except Exception as e:
@@ -250,9 +261,9 @@ class ServerControlPanel:
             pass
 
     def stop_servers(self):
-        """Stop both servers"""
+        """Stop server"""
         self.log("\n" + "=" * 60)
-        self.log("Stopping servers...")
+        self.log("Stopping server...")
         self.log("=" * 60)
 
         # Stop Flask
@@ -260,27 +271,20 @@ class ServerControlPanel:
             self.flask_process.terminate()
             self.flask_process.wait()
             self.flask_process = None
-            self.log("⏹ Flask Backend stopped")
-
-        # Stop Frontend
-        if self.frontend_process:
-            self.frontend_process.terminate()
-            self.frontend_process.wait()
-            self.frontend_process = None
-            self.log("⏹ Frontend Server stopped")
+            self.log("⏹ Flask Application stopped")
 
         # Update UI
         self.start_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
         self.reset_btn.config(state=tk.DISABLED)
         self.browser_btn.config(state=tk.DISABLED)
-        self.update_status("● Servers Stopped", "#ef4444")
+        self.update_status("● Server Stopped", "#ef4444")
 
-        self.log("\n✅ All servers stopped.\n")
+        self.log("\n✅ Server stopped.\n")
 
     def reset_servers(self):
-        """Reset servers (stop then start)"""
-        self.log("\n🔄 Resetting servers...")
+        """Reset server (stop then start)"""
+        self.log("\n🔄 Resetting server...")
         self.stop_servers()
         # Small delay before restart
         self.root.after(1000, self.start_servers)
@@ -288,7 +292,7 @@ class ServerControlPanel:
     def open_browser(self):
         """Open the application in default browser"""
         self.log("\n🌐 Opening application in browser...")
-        webbrowser.open('http://localhost:8000')
+        webbrowser.open('http://localhost:5000')
 
     def on_closing(self):
         """Handle window close event"""

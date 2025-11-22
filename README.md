@@ -8,9 +8,7 @@
 
 > A production-ready inventory management system built on double-entry accounting principles, combining real-world supply chain operations with enterprise-grade financial tracking.
 
----
-
-## 📋 Table of Contents
+## Table of Contents
 
 - [About the Project](#about-the-project)
 - [Demo](#demo)
@@ -29,9 +27,7 @@
 - [License](#license)
 - [Contact](#contact)
 
----
-
-## 🎯 About the Project
+## About the Project
 
 **Artifact Live** is a full-stack inventory management and operations system that brings enterprise-level tracking to small businesses and independent operations. Unlike typical inventory apps that focus solely on quantities, Artifact Live integrates **complete financial accounting** with operational management - tracking not just what you have, but what it's worth and how it impacts profitability.
 
@@ -74,9 +70,7 @@ Artifact Live provides:
 - [Digital Harvest](https://github.com/matthew-s-jenkins/digital-harvest-sim) - Business simulation that inspired this system's supply chain logic
 - [Perfect Books](https://github.com/matthew-s-jenkins/perfect-books) - Personal finance app that provides the accounting foundation
 
----
-
-## 🎬 Demo
+## Demo
 
 ### Interactive Dashboard
 
@@ -89,8 +83,6 @@ Artifact Live provides:
 ![FIFO Costing](screenshots/fifo-layers.png)
 
 *Real-time cost layer tracking showing how FIFO accounting calculates accurate COGS for each sale.*
-
----
 
 ## Technical Challenges Solved
 
@@ -160,7 +152,7 @@ This ensures the books always balance and profitability is accurate in real-time
 - **Vendor Performance**: Track on-time delivery, cost trends, and reliability
 - **Purchase History**: Complete audit trail of all vendor transactions
 
-### 💰 Sales & Order Management
+### Sales & Order Management
 
 - **Sales Order Processing**: Record customer orders and reservations
 - **Inventory Allocation**: Commit inventory to orders before shipment
@@ -169,7 +161,7 @@ This ensures the books always balance and profitability is accurate in real-time
 - **Customer Management**: Track buyers, shipping addresses, and order history
 - **Sales Analytics**: Revenue trends, product performance, customer insights
 
-### 📊 Financial Accounting
+### Financial Accounting
 
 - **Double-Entry Ledger**: Complete transaction history with balanced entries
 - **COGS Automation**: Accurate cost of goods sold calculated on every sale
@@ -178,7 +170,7 @@ This ensures the books always balance and profitability is accurate in real-time
 - **Accounts Payable**: Track vendor invoices and payment obligations
 - **Accounts Receivable**: Manage customer payments and outstanding balances
 
-### 🔐 Security & Multi-User
+### Security & Multi-User
 
 - **User Authentication**: Secure registration and login with bcrypt (from Perfect Books)
 - **Session Management**: Flask-Login for secure session handling
@@ -186,9 +178,7 @@ This ensures the books always balance and profitability is accurate in real-time
 - **Role-Based Access**: Support for multiple users with different permission levels
 - **Audit Trail**: Immutable transaction log for compliance
 
----
-
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
@@ -200,9 +190,7 @@ This ensures the books always balance and profitability is accurate in real-time
 | **Security** | bcrypt | Password hashing and authentication |
 | **Analytics** | Power BI / Tableau | Business intelligence dashboards (planned) |
 
----
-
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -266,9 +254,7 @@ Before running Artifact Live, ensure you have:
    - First visit: Click "Register" to create an account
    - Subsequent visits: Login with your credentials
 
----
-
-## 🏗️ Architecture
+## Architecture
 
 ### Stateless Design
 
@@ -322,9 +308,7 @@ DR: COGS              $30   (increase expense)
 CR: Inventory         $30   (decrease asset)
 ```
 
----
-
-## 🗄️ Database Schema
+## Database Schema
 
 The database follows **normalized design principles** with referential integrity:
 
@@ -408,27 +392,39 @@ The database follows **normalized design principles** with referential integrity
 | GET | `/api/financials/pl` | ✓ | Get P&L statement |
 | GET | `/api/financials/inventory_value` | ✓ | Get inventory valuation |
 
----
+## Roadmap
 
-## 🗺️ Roadmap
-
-### 🚧 In Development (v1.0 - MVP)
+### In Development (v1.0 - MVP)
 
 This project is currently in active development. The README represents the planned architecture and feature set.
 
 **Phase 1: Foundation (Current)**
-- [ ] Database schema design and setup
-- [ ] User authentication system (from Perfect Books)
-- [ ] Basic product catalog
-- [ ] Simple inventory tracking
-- [ ] Login/registration screens
+- [x] Database schema design and setup
+- [x] User authentication system (Google OAuth)
+- [x] Basic product catalog
+- [x] Simple inventory tracking
+- [x] Login/registration screens
+- [x] Theme system with 6 color options
+- [x] GUI server control panel
+- [x] Multi-business support (home page/workspace selector)
 
 **Phase 2: Core Operations**
+- [ ] Business/workspace dashboard
 - [ ] Purchase order creation
 - [ ] Inventory receiving workflow
 - [ ] FIFO cost layer tracking
 - [ ] Sales order processing
 - [ ] Double-entry ledger integration
+- [ ] **Kitting/Assembly System (BOM)**
+  - [ ] Parent-child product relationships (Bill of Materials)
+  - [ ] Component consumption on assembly
+  - [ ] Advanced keyboard build system:
+    - [ ] Keycap set definition (which keys included)
+    - [ ] Keyboard layout requirements (which keys needed)
+    - [ ] Automatic compatibility validation
+    - [ ] Component substitution rules
+  - [ ] Assembly cost rollup (materials + labor)
+  - [ ] Inventory depletion on sale of assembled items
 
 **Phase 3: Financial Integration**
 - [ ] COGS calculation automation
@@ -437,7 +433,7 @@ This project is currently in active development. The README represents the plann
 - [ ] Vendor management
 - [ ] Basic analytics dashboard
 
-### 🔮 Planned Features (v2.0)
+### Planned Features (v2.0)
 
 - [ ] **Power BI Dashboard Integration** - Live connection for advanced analytics
 - [ ] **Barcode scanning** - Mobile app for warehouse operations
@@ -458,20 +454,18 @@ This project is currently in active development. The README represents the plann
 - [ ] EDI integration for enterprise vendors
 - [ ] Multi-warehouse distribution optimization
 
----
-
-## 🔗 Related Projects
+## Related Projects
 
 ### Digital Harvest - Business Simulation Engine
 
 Artifact Live applies the supply chain concepts from [Digital Harvest](https://github.com/matthew-s-jenkins/digital-harvest-sim) to real business operations.
 
 **Shared Principles:**
-- ✅ Perpetual inventory system with FIFO costing
-- ✅ Double-entry accounting (Assets = Liabilities + Equity)
-- ✅ Vendor management and procurement workflows
-- ✅ BI-ready normalized database schema
-- ✅ Flask REST API architecture
+- Perpetual inventory system with FIFO costing
+- Double-entry accounting (Assets = Liabilities + Equity)
+- Vendor management and procurement workflows
+- BI-ready normalized database schema
+- Flask REST API architecture
 
 **Key Differences:**
 | Artifact Live | Digital Harvest |
@@ -486,15 +480,13 @@ Artifact Live applies the supply chain concepts from [Digital Harvest](https://g
 Artifact Live uses the authentication and accounting foundation from [Perfect Books](https://github.com/matthew-s-jenkins/perfect-books).
 
 **Shared Architecture:**
-- ✅ Multi-user authentication with data isolation
-- ✅ Double-entry ledger system
-- ✅ Immutable audit trail with transaction UUIDs
-- ✅ Flask + React + MySQL stack
-- ✅ Stateless API design
+- Multi-user authentication with data isolation
+- Double-entry ledger system
+- Immutable audit trail with transaction UUIDs
+- Flask + React + MySQL stack
+- Stateless API design
 
----
-
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! This project is ideal for:
 - **Students** learning about inventory management, accounting, or full-stack development
@@ -509,24 +501,18 @@ Contributions are welcome! This project is ideal for:
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
----
-
-## 📜 License
+## License
 
 This project is open source and available under the [MIT License](LICENSE).
 
----
-
-## 📧 Contact
+## Contact
 
 **Matthew Jenkins**
 - GitHub: [@matthew-s-jenkins](https://github.com/matthew-s-jenkins)
 - LinkedIn: [linkedin.com/in/matthew-s-jenkins](https://www.linkedin.com/in/matthew-s-jenkins/)
 - Email: [mjenkins87@live.com](mailto:mjenkins87@live.com)
 
----
-
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - MySQL for robust relational database management
 - Flask for lightweight, powerful API development
