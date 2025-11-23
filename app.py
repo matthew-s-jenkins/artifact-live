@@ -13,6 +13,7 @@ from google_auth_oauthlib.flow import Flow
 # Import blueprints
 from ingest_api import ingest_bp
 from locations_api import locations_bp
+from inventory_api import inventory_bp
 
 # Load environment variables
 load_dotenv()
@@ -37,6 +38,7 @@ login_manager.init_app(app)
 # Register blueprints
 app.register_blueprint(ingest_bp)
 app.register_blueprint(locations_bp)
+app.register_blueprint(inventory_bp)
 
 # Database configuration
 DB_CONFIG = {
@@ -228,7 +230,11 @@ def logout():
     """Log out the current user"""
     logout_user()
     session.clear()
-    return jsonify({'message': 'Logout successful'}), 200
+    response = jsonify({'message': 'Logout successful'})
+    # Clear session cookies
+    response.set_cookie('session', '', expires=0)
+    response.set_cookie('remember_token', '', expires=0)
+    return response, 200
 
 @app.route('/api/check_auth', methods=['GET'])
 def check_auth():
