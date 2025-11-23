@@ -10,6 +10,10 @@ import requests
 from google.oauth2 import credentials
 from google_auth_oauthlib.flow import Flow
 
+# Import blueprints
+from ingest_api import ingest_bp
+from locations_api import locations_bp
+
 # Load environment variables
 load_dotenv()
 
@@ -29,6 +33,10 @@ CORS(app, supports_credentials=True, origins=['http://localhost:5000', 'http://1
 # Configure Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
+
+# Register blueprints
+app.register_blueprint(ingest_bp)
+app.register_blueprint(locations_bp)
 
 # Database configuration
 DB_CONFIG = {

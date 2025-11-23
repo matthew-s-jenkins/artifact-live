@@ -141,6 +141,17 @@ class ServerControlPanel:
         )
         self.browser_btn.pack(side=tk.LEFT, padx=10)
 
+        # Kill All Button
+        self.killall_btn = tk.Button(
+            control_frame,
+            text="💀 Kill All Python",
+            bg="#dc2626",
+            fg="white",
+            command=self.kill_all_python,
+            **button_style
+        )
+        self.killall_btn.pack(side=tk.LEFT, padx=10)
+
         # Status Frame
         status_frame = tk.Frame(self.root, bg="#f3f4f6", pady=10)
         status_frame.pack(fill=tk.X)
@@ -268,8 +279,12 @@ class ServerControlPanel:
 
         # Stop Flask
         if self.flask_process:
-            self.flask_process.terminate()
-            self.flask_process.wait()
+            try:
+                # Force kill on Windows to ensure process termination
+                self.flask_process.kill()
+                self.flask_process.wait(timeout=5)
+            except:
+                pass
             self.flask_process = None
             self.log("⏹ Flask Application stopped")
 
@@ -293,6 +308,31 @@ class ServerControlPanel:
         """Open the application in default browser"""
         self.log("\n🌐 Opening application in browser...")
         webbrowser.open('http://localhost:5000')
+
+    def kill_all_python(self):
+        """Kill all Python processes (including orphaned ones)"""
+        self.log("\n💀 Killing all Python processes...")
+        try:
+            result = subprocess.run(
+                ['taskkill', '/F', '/IM', 'python.exe'],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                self.log("✅ All Python processes killed")
+                self.log(result.stdout)
+            else:
+                self.log("ℹ️ No Python processes found or already stopped")
+
+            # Reset UI state
+            self.flask_process = None
+            self.start_btn.config(state=tk.NORMAL)
+            self.stop_btn.config(state=tk.DISABLED)
+            self.reset_btn.config(state=tk.DISABLED)
+            self.browser_btn.config(state=tk.DISABLED)
+            self.update_status("● Server Stopped", "#ef4444")
+        except Exception as e:
+            self.log(f"❌ Error: {str(e)}")
 
     def on_closing(self):
         """Handle window close event"""

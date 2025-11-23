@@ -8,67 +8,11 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Color Theme Variables - Default: Cyan/Blue */
-        :root {
-            --primary: #06b6d4;
-            --primary-hover: #0891b2;
-            --primary-light: #cffafe;
-        }
 
-        /* Theme: Tan/Amber */
-        [data-theme="tan"] {
-            --primary: #d97706;
-            --primary-hover: #b45309;
-            --primary-light: #fef3c7;
-        }
-
-        /* Theme: Purple/Violet */
-        [data-theme="purple"] {
-            --primary: #8b5cf6;
-            --primary-hover: #7c3aed;
-            --primary-light: #ede9fe;
-        }
-
-        /* Theme: Emerald/Green */
-        [data-theme="emerald"] {
-            --primary: #10b981;
-            --primary-hover: #059669;
-            --primary-light: #d1fae5;
-        }
-
-        /* Theme: Rose/Pink */
-        [data-theme="rose"] {
-            --primary: #f43f5e;
-            --primary-hover: #e11d48;
-            --primary-light: #ffe4e6;
-        }
-
-        /* Theme: Slate/Blue Gray */
-        [data-theme="slate"] {
-            --primary: #64748b;
-            --primary-hover: #475569;
-            --primary-light: #e2e8f0;
-        }
-
-        .btn-primary {
-            background-color: var(--primary);
-        }
-
-        .btn-primary:hover {
-            background-color: var(--primary-hover);
-        }
-
-        .text-primary {
-            color: var(--primary);
-        }
-
-        .bg-primary-light {
-            background-color: var(--primary-light);
-        }
-    </style>
+    <!-- External Theme Stylesheet -->
+    <link rel="stylesheet" href="themes.css">
 </head>
-<body class="bg-gray-50" data-theme="cyan">
+<body class="bg-gray-900" data-theme="cyan">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -90,6 +34,7 @@
                 const savedTheme = localStorage.getItem('artifact_theme') || 'cyan';
                 setTheme(savedTheme);
                 document.body.setAttribute('data-theme', savedTheme);
+                document.body.className = 'bg-gradient-custom';
             }, []);
 
             const handleThemeChange = (newTheme) => {
@@ -155,22 +100,21 @@
             }
 
             return (
-                <div className="min-h-screen bg-gray-50">
+                <div className="min-h-screen">
                     {/* Header */}
-                    <header className="bg-white shadow-sm border-b border-gray-200">
+                    <header className="card-bg border-b">
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <h1 className="text-2xl font-bold text-gray-900">Artifact Live</h1>
-                                    <p className="text-sm text-gray-600">Welcome back, {user?.username || 'User'}</p>
+                                    <h1 className="text-2xl font-bold text-white">Artifact Live</h1>
+                                    <p className="text-sm text-gray-300">Welcome back, {user?.username || 'User'}</p>
                                 </div>
                                 <div className="flex items-center space-x-4">
                                     {/* Theme Selector */}
                                     <select
                                         value={theme}
                                         onChange={(e) => handleThemeChange(e.target.value)}
-                                        className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-offset-2"
-                                        style={{ focusRingColor: 'var(--primary)' }}
+                                        className="card-bg text-white px-3 py-2 border rounded-md text-sm focus:outline-none"
                                     >
                                         <option value="cyan">Cyan/Blue</option>
                                         <option value="tan">Tan/Amber</option>
@@ -181,7 +125,7 @@
                                     </select>
                                     <button
                                         onClick={handleLogout}
-                                        className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition"
+                                        className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition"
                                     >
                                         Logout
                                     </button>
@@ -194,8 +138,8 @@
                     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                         <div className="mb-8 flex justify-between items-center">
                             <div>
-                                <h2 className="text-3xl font-bold text-gray-900">My Businesses</h2>
-                                <p className="mt-2 text-gray-600">Select a workspace to manage inventory, orders, and financials</p>
+                                <h2 className="text-3xl font-bold text-white">My Businesses</h2>
+                                <p className="mt-2 text-gray-300">Select a workspace to manage inventory, orders, and financials</p>
                             </div>
                             <button
                                 onClick={() => setShowNewBusinessModal(true)}
@@ -211,34 +155,32 @@
                                 <div
                                     key={business.id}
                                     onClick={() => openBusiness(business.id)}
-                                    className="bg-white rounded-lg shadow-md hover:shadow-xl transition cursor-pointer border border-gray-200 overflow-hidden group"
+                                    className="card-bg border rounded-lg shadow-md hover:shadow-xl transition cursor-pointer overflow-hidden group"
                                 >
                                     <div className="p-6">
                                         <div className="flex items-start justify-between mb-4">
-                                            <div className="bg-primary-light rounded-lg p-3">
-                                                {business.type === 'KEYBOARD_SHOP' && (
-                                                    <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                                                    </svg>
-                                                )}
-                                                {business.type === 'ELECTRONICS' && (
-                                                    <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                                                    </svg>
-                                                )}
-                                            </div>
-                                            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                            {business.type === 'KEYBOARD_SHOP' && (
+                                                <svg className="w-10 h-10 text-primary opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                                                </svg>
+                                            )}
+                                            {business.type === 'ELECTRONICS' && (
+                                                <svg className="w-10 h-10 text-primary opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                                </svg>
+                                            )}
+                                            <span className="text-xs font-medium text-gray-400 bg-gray-800 bg-opacity-50 px-2 py-1 rounded">
                                                 {business.type.replace('_', ' ')}
                                             </span>
                                         </div>
-                                        <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-primary transition">
+                                        <h3 className="text-xl font-bold text-white mb-2 group-hover:text-primary transition">
                                             {business.name}
                                         </h3>
-                                        <p className="text-gray-600 text-sm">
+                                        <p className="text-gray-300 text-sm">
                                             {business.description}
                                         </p>
                                     </div>
-                                    <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
+                                    <div className="bg-gray-800 bg-opacity-50 px-6 py-3 border-t border-gray-700">
                                         <span className="text-sm text-primary font-medium">
                                             Open Workspace →
                                         </span>
@@ -249,11 +191,11 @@
                             {/* Empty State */}
                             {businesses.length === 0 && (
                                 <div className="col-span-full text-center py-12">
-                                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="mx-auto h-12 w-12 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                                     </svg>
-                                    <h3 className="mt-2 text-sm font-medium text-gray-900">No businesses yet</h3>
-                                    <p className="mt-1 text-sm text-gray-500">Get started by creating your first business.</p>
+                                    <h3 className="mt-2 text-sm font-medium text-white">No businesses yet</h3>
+                                    <p className="mt-1 text-sm text-gray-400">Get started by creating your first business.</p>
                                 </div>
                             )}
                         </div>
