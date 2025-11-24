@@ -4,6 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Artifact Live - Dashboard</title>
+
+    <!-- Apply theme background IMMEDIATELY to prevent white flash -->
+    <script>
+        (function() {
+            const themeColors = {
+                cyan: '#111827',
+                tan: '#1c1917',
+                purple: '#151621',
+                emerald: '#111f1b',
+                rose: '#121012',
+                slate: '#0a0a0a'
+            };
+            const savedTheme = localStorage.getItem('theme') || 'cyan';
+            document.documentElement.style.backgroundColor = themeColors[savedTheme];
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -386,6 +404,766 @@
                             </div>
                         )}
                     </div>
+                </div>
+            );
+        };
+
+        // ============================================================================
+        // FINANCIALS TAB COMPONENT
+        // ============================================================================
+
+        const FinancialsTab = ({ user, businessId }) => {
+            const [activeView, setActiveView] = useState('ledger'); // ledger, trial, balance, accounts
+            const [accountingEquation, setAccountingEquation] = useState(null);
+            const [ledger, setLedger] = useState([]);
+            const [ledgerPagination, setLedgerPagination] = useState({ total_count: 0, limit: 100, offset: 0 });
+            const [trialBalance, setTrialBalance] = useState(null);
+            const [balanceSheet, setBalanceSheet] = useState(null);
+            const [accounts, setAccounts] = useState([]);
+            const [showCreateAccount, setShowCreateAccount] = useState(false);
+            const [newAccount, setNewAccount] = useState({ account_name: '', account_type: 'ASSET', subtype: '' });
+            const [loading, setLoading] = useState(false);
+
+            // Business name for header
+            const businessName = 'Keyboard Kingdom';
+
+            useEffect(() => {
+                if (activeView === 'ledger') {
+                    loadAccountingEquation(); // Load for ledger page header
+                    loadLedger();
+                } else if (activeView === 'trial') {
+                    loadTrialBalance();
+                } else if (activeView === 'balance') {
+                    loadBalanceSheet();
+                } else if (activeView === 'accounts') {
+                    loadAccounts();
+                }
+            }, [activeView, businessId]);
+
+            const loadAccountingEquation = async () => {
+                setLoading(true);
+                try {
+                    const response = await fetch(
+                        `${API_BASE_URL}/api/financials/accounting_equation?business_id=${businessId}`,
+                        { credentials: 'include' }
+                    );
+                    if (response.ok) {
+                        const data = await response.json();
+                        setAccountingEquation(data);
+                    }
+                } catch (error) {
+                    console.error('Error loading accounting equation:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadLedger = async (offset = 0) => {
+                setLoading(true);
+                try {
+                    const response = await fetch(
+                        `${API_BASE_URL}/api/financials/ledger?business_id=${businessId}&limit=100&offset=${offset}`,
+                        { credentials: 'include' }
+                    );
+                    if (response.ok) {
+                        const data = await response.json();
+                        setLedger(data.entries || []);
+                        setLedgerPagination({
+                            total_count: data.total_count,
+                            limit: data.limit,
+                            offset: data.offset
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading ledger:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadTrialBalance = async () => {
+                setLoading(true);
+                try {
+                    const response = await fetch(
+                        `${API_BASE_URL}/api/financials/trial_balance?business_id=${businessId}`,
+                        { credentials: 'include' }
+                    );
+                    if (response.ok) {
+                        const data = await response.json();
+                        setTrialBalance(data);
+                    }
+                } catch (error) {
+                    console.error('Error loading trial balance:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadBalanceSheet = async () => {
+                setLoading(true);
+                try {
+                    const response = await fetch(
+                        `${API_BASE_URL}/api/financials/balance_sheet?business_id=${businessId}`,
+                        { credentials: 'include' }
+                    );
+                    if (response.ok) {
+                        const data = await response.json();
+                        setBalanceSheet(data);
+                    }
+                } catch (error) {
+                    console.error('Error loading balance sheet:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadAccounts = async () => {
+                setLoading(true);
+                try {
+                    const response = await fetch(
+                        `${API_BASE_URL}/api/accounts`,
+                        { credentials: 'include' }
+                    );
+                    if (response.ok) {
+                        const data = await response.json();
+                        setAccounts(data);
+                    }
+                } catch (error) {
+                    console.error('Error loading accounts:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleCreateAccount = async (e) => {
+                e.preventDefault();
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/accounts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(newAccount)
+                    });
+                    if (response.ok) {
+                        setShowCreateAccount(false);
+                        setNewAccount({ account_name: '', account_type: 'ASSET', subtype: '' });
+                        loadAccounts();
+                    } else {
+                        const error = await response.json();
+                        alert(error.error || 'Failed to create account');
+                    }
+                } catch (error) {
+                    console.error('Error creating account:', error);
+                    alert('Failed to create account');
+                }
+            };
+
+            const handleDeleteAccount = async (accountId) => {
+                if (!confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/accounts/${accountId}`, {
+                        method: 'DELETE',
+                        credentials: 'include'
+                    });
+
+                    if (response.ok) {
+                        loadAccounts();
+                    } else {
+                        const error = await response.json();
+                        alert(error.error || 'Failed to delete account');
+                    }
+                } catch (error) {
+                    console.error('Error deleting account:', error);
+                    alert('Failed to delete account');
+                }
+            };
+
+            const handleReverseTransaction = async (transactionUuid) => {
+                if (!confirm('Are you sure you want to reverse this transaction? This will create offsetting entries.')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/financials/reverse_transaction`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({ transaction_uuid: transactionUuid })
+                    });
+
+                    if (response.ok) {
+                        loadLedger();
+                        loadAccountingEquation();
+                    } else {
+                        const error = await response.json();
+                        alert(error.error || 'Failed to reverse transaction');
+                    }
+                } catch (error) {
+                    console.error('Error reversing transaction:', error);
+                    alert('Failed to reverse transaction');
+                }
+            };
+
+            return (
+                <div>
+                    {/* View Selector */}
+                    <div className="mb-6 flex gap-2">
+                        <button
+                            onClick={() => setActiveView('ledger')}
+                            className={`px-4 py-2 rounded-lg font-semibold transition ${
+                                activeView === 'ledger'
+                                    ? 'bg-primary text-white'
+                                    : 'bg-dark-secondary text-gray-400 hover:bg-dark-tertiary'
+                            }`}
+                        >
+                            Ledger
+                        </button>
+                        <button
+                            onClick={() => setActiveView('trial')}
+                            className={`px-4 py-2 rounded-lg font-semibold transition ${
+                                activeView === 'trial'
+                                    ? 'bg-primary text-white'
+                                    : 'bg-dark-secondary text-gray-400 hover:bg-dark-tertiary'
+                            }`}
+                        >
+                            Trial Balance
+                        </button>
+                        <button
+                            onClick={() => setActiveView('balance')}
+                            className={`px-4 py-2 rounded-lg font-semibold transition ${
+                                activeView === 'balance'
+                                    ? 'bg-primary text-white'
+                                    : 'bg-dark-secondary text-gray-400 hover:bg-dark-tertiary'
+                            }`}
+                        >
+                            Balance Sheet
+                        </button>
+                        <button
+                            onClick={() => setActiveView('accounts')}
+                            className={`px-4 py-2 rounded-lg font-semibold transition ${
+                                activeView === 'accounts'
+                                    ? 'bg-primary text-white'
+                                    : 'bg-dark-secondary text-gray-400 hover:bg-dark-tertiary'
+                            }`}
+                        >
+                            Manage Accounts
+                        </button>
+                    </div>
+
+                    {/* Ledger View with Accounting Equation */}
+                    {activeView === 'ledger' && (
+                        <div>
+                            {/* Accounting Equation at top */}
+                            {accountingEquation && (
+                                <div className="bg-dark-secondary rounded-lg p-6 mb-3">
+                                    <div className="flex items-center justify-center gap-8 mb-4">
+                                        <div className="text-center">
+                                            <div className="text-gray-400 text-sm mb-1">Assets</div>
+                                            <div className="text-2xl font-bold text-blue-400">
+                                                ${accountingEquation.assets.toFixed(2)}
+                                            </div>
+                                        </div>
+                                        <div className="text-3xl font-bold text-gray-500">=</div>
+                                        <div className="text-center">
+                                            <div className="text-gray-400 text-sm mb-1">Liabilities</div>
+                                            <div className="text-2xl font-bold text-red-400">
+                                                ${accountingEquation.liabilities.toFixed(2)}
+                                            </div>
+                                        </div>
+                                        <div className="text-3xl font-bold text-gray-500">+</div>
+                                        <div className="text-center">
+                                            <div className="text-gray-400 text-sm mb-1">Equity</div>
+                                            <div className="text-2xl font-bold text-green-400">
+                                                ${accountingEquation.equity.toFixed(2)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-center">
+                                        {accountingEquation.is_balanced ? (
+                                            <div className="inline-flex items-center gap-2 bg-green-900/30 text-green-400 px-3 py-1 rounded text-sm">
+                                                <span>✓ Balanced</span>
+                                            </div>
+                                        ) : (
+                                            <div className="inline-flex items-center gap-2 bg-red-900/30 text-red-400 px-3 py-1 rounded text-sm">
+                                                <span>⚠ Out of Balance by ${Math.abs(accountingEquation.difference).toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* General Ledger - Perfect Books Style */}
+                            <div className="bg-dark-secondary rounded-lg overflow-hidden">
+                                <div className="p-4 border-b border-gray-700">
+                                    <h3 className="text-lg font-bold text-white">General Ledger</h3>
+                                    <p className="text-sm text-gray-400">Double-entry transactions</p>
+                                </div>
+                                {loading ? (
+                                    <div className="p-8 text-center text-gray-400">Loading ledger...</div>
+                                ) : ledger.length === 0 ? (
+                                    <div className="p-8 text-center text-gray-400">No ledger entries found</div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-dark-tertiary">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Date</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Transaction</th>
+                                                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase">Amount</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-blue-400 uppercase">Assets</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">=</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-red-400 uppercase">Liabilities</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400">+</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-green-400 uppercase">Equity</th>
+                                                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-400 uppercase">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-700">
+                                                {(() => {
+                                                    // Group entries by transaction_uuid
+                                                    const grouped = {};
+                                                    ledger.forEach(entry => {
+                                                        if (!grouped[entry.transaction_uuid]) {
+                                                            grouped[entry.transaction_uuid] = [];
+                                                        }
+                                                        grouped[entry.transaction_uuid].push(entry);
+                                                    });
+
+                                                    return Object.values(grouped).map((group, idx) => {
+                                                        // Find debit and credit entries
+                                                        const debitEntry = group.find(e => e.debit > 0);
+                                                        const creditEntry = group.find(e => e.credit > 0);
+                                                        const date = group[0].entry_date;
+                                                        const description = group[0].description || '';
+                                                        const amount = debitEntry ? debitEntry.debit : (creditEntry ? creditEntry.credit : 0);
+
+                                                        // Calculate changes for each side of equation
+                                                        let assetsChange = 0;
+                                                        let liabilitiesChange = 0;
+                                                        let equityChange = 0;
+
+                                                        group.forEach(entry => {
+                                                            const change = entry.debit - entry.credit;
+                                                            if (entry.account_type === 'ASSET') {
+                                                                assetsChange += change;
+                                                            } else if (entry.account_type === 'LIABILITY') {
+                                                                liabilitiesChange -= change; // Reverse for credit normal
+                                                            } else if (entry.account_type === 'EQUITY' || entry.account_type === 'REVENUE') {
+                                                                equityChange -= change; // Reverse for credit normal
+                                                            } else if (entry.account_type === 'EXPENSE') {
+                                                                equityChange += change; // Expenses reduce equity
+                                                            }
+                                                        });
+
+                                                        return (
+                                                            <tr key={group[0].transaction_uuid || idx} className="hover:bg-dark-tertiary transition">
+                                                                <td className="px-4 py-3 text-sm text-gray-300">
+                                                                    {new Date(date).toLocaleDateString()}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-sm">
+                                                                    <div className="text-white">
+                                                                        {creditEntry?.account_name || 'N/A'} → {debitEntry?.account_name || 'N/A'}
+                                                                    </div>
+                                                                    {description && (
+                                                                        <div className="text-xs text-gray-400 mt-1">{description}</div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-sm text-right text-primary font-semibold">
+                                                                    ${parseFloat(amount).toFixed(2)}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center text-sm">
+                                                                    {assetsChange !== 0 ? (
+                                                                        <span className={assetsChange > 0 ? 'text-green-400' : 'text-red-400'}>
+                                                                            {assetsChange > 0 ? '+' : ''}${assetsChange.toFixed(2)}
+                                                                        </span>
+                                                                    ) : <span className="text-gray-600">-</span>}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center text-gray-500">=</td>
+                                                                <td className="px-4 py-3 text-center text-sm">
+                                                                    {liabilitiesChange !== 0 ? (
+                                                                        <span className={liabilitiesChange > 0 ? 'text-green-400' : 'text-red-400'}>
+                                                                            {liabilitiesChange > 0 ? '+' : ''}${liabilitiesChange.toFixed(2)}
+                                                                        </span>
+                                                                    ) : <span className="text-gray-600">-</span>}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center text-gray-500">+</td>
+                                                                <td className="px-4 py-3 text-center text-sm">
+                                                                    {equityChange !== 0 ? (
+                                                                        <span className={equityChange > 0 ? 'text-green-400' : 'text-red-400'}>
+                                                                            {equityChange > 0 ? '+' : ''}${equityChange.toFixed(2)}
+                                                                        </span>
+                                                                    ) : <span className="text-gray-600">-</span>}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    {group[0].reference_type !== 'CAPITAL_CONTRIBUTION' && (
+                                                                        <button
+                                                                            onClick={() => handleReverseTransaction(group[0].transaction_uuid)}
+                                                                            className="px-3 py-1 text-xs text-red-400 hover:text-red-300 hover:bg-dark-tertiary rounded transition"
+                                                                        >
+                                                                            ✕ Reverse
+                                                                        </button>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    });
+                                                })()}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                                {ledger.length > 0 && (
+                                    <div className="p-4 border-t border-gray-700 flex justify-between items-center">
+                                        <div className="text-sm text-gray-400">
+                                            Showing transactions
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => loadLedger(Math.max(0, ledgerPagination.offset - ledgerPagination.limit))}
+                                                disabled={ledgerPagination.offset === 0}
+                                                className="px-3 py-1 bg-dark-tertiary text-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition"
+                                            >
+                                                Previous
+                                            </button>
+                                            <button
+                                                onClick={() => loadLedger(ledgerPagination.offset + ledgerPagination.limit)}
+                                                disabled={ledgerPagination.offset + ledgerPagination.limit >= ledgerPagination.total_count}
+                                                className="px-3 py-1 bg-dark-tertiary text-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 transition"
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Trial Balance View */}
+                    {activeView === 'trial' && trialBalance && (
+                        <div className="bg-dark-secondary rounded-lg overflow-hidden">
+                            <div className="p-4 border-b border-gray-700">
+                                <h3 className="text-lg font-bold text-white">Trial Balance</h3>
+                                <p className="text-sm text-gray-400">All accounts with their current balances</p>
+                            </div>
+                            {loading ? (
+                                <div className="p-8 text-center text-gray-400">Loading trial balance...</div>
+                            ) : trialBalance.accounts.length === 0 ? (
+                                <div className="p-8 text-center text-gray-400">No accounts found</div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-dark-tertiary">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Account</th>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Type</th>
+                                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase">Debit</th>
+                                                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase">Credit</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-700">
+                                            {trialBalance.accounts.map((account, idx) => (
+                                                <tr key={account.account_id} className="hover:bg-dark-tertiary transition">
+                                                    <td className="px-4 py-3 text-sm text-white font-semibold">
+                                                        {account.account_name}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-sm text-gray-400">
+                                                        {account.account_type}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-sm text-right text-blue-400 font-semibold">
+                                                        {account.debit > 0 ? `$${account.debit.toFixed(2)}` : ''}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-sm text-right text-green-400 font-semibold">
+                                                        {account.credit > 0 ? `$${account.credit.toFixed(2)}` : ''}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            <tr className="bg-dark-tertiary font-bold">
+                                                <td className="px-4 py-3 text-sm text-white" colSpan="2">TOTALS</td>
+                                                <td className="px-4 py-3 text-sm text-right text-blue-400">
+                                                    ${trialBalance.total_debits.toFixed(2)}
+                                                </td>
+                                                <td className="px-4 py-3 text-sm text-right text-green-400">
+                                                    ${trialBalance.total_credits.toFixed(2)}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                            <div className="p-4 border-t border-gray-700 text-center">
+                                {trialBalance.is_balanced ? (
+                                    <div className="inline-flex items-center gap-2 bg-green-900/30 text-green-400 px-4 py-2 rounded-lg">
+                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                        </svg>
+                                        <span className="font-semibold">Trial Balance is Balanced</span>
+                                    </div>
+                                ) : (
+                                    <div className="inline-flex items-center gap-2 bg-red-900/30 text-red-400 px-4 py-2 rounded-lg">
+                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                        </svg>
+                                        <span className="font-semibold">Trial Balance is Out of Balance</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Balance Sheet View */}
+                    {activeView === 'balance' && balanceSheet && (
+                        <div className="bg-dark-secondary rounded-lg overflow-hidden">
+                            <div className="p-4 border-b border-gray-700">
+                                <h3 className="text-lg font-bold text-white">Balance Sheet</h3>
+                                <p className="text-sm text-gray-400">Statement of Financial Position</p>
+                            </div>
+                            {loading ? (
+                                <div className="p-8 text-center text-gray-400">Loading balance sheet...</div>
+                            ) : (
+                                <div className="p-6">
+                                    <div className="grid md:grid-cols-2 gap-8">
+                                        {/* Assets Column */}
+                                        <div>
+                                            <h4 className="text-lg font-bold text-blue-400 mb-4">ASSETS</h4>
+                                            <div className="space-y-2">
+                                                {balanceSheet.assets.map((asset, idx) => (
+                                                    <div key={idx} className="flex justify-between text-sm">
+                                                        <span className="text-gray-300">{asset.account_name}</span>
+                                                        <span className="text-white font-semibold">${parseFloat(asset.balance).toFixed(2)}</span>
+                                                    </div>
+                                                ))}
+                                                <div className="border-t border-gray-700 pt-2 mt-4 flex justify-between font-bold">
+                                                    <span className="text-white">Total Assets</span>
+                                                    <span className="text-blue-400">${balanceSheet.total_assets.toFixed(2)}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Liabilities & Equity Column */}
+                                        <div>
+                                            <h4 className="text-lg font-bold text-red-400 mb-4">LIABILITIES</h4>
+                                            <div className="space-y-2 mb-6">
+                                                {balanceSheet.liabilities.length > 0 ? (
+                                                    balanceSheet.liabilities.map((liability, idx) => (
+                                                        <div key={idx} className="flex justify-between text-sm">
+                                                            <span className="text-gray-300">{liability.account_name}</span>
+                                                            <span className="text-white font-semibold">${parseFloat(liability.balance).toFixed(2)}</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="text-sm text-gray-500">No liabilities</div>
+                                                )}
+                                                <div className="border-t border-gray-700 pt-2 mt-4 flex justify-between font-bold">
+                                                    <span className="text-white">Total Liabilities</span>
+                                                    <span className="text-red-400">${balanceSheet.total_liabilities.toFixed(2)}</span>
+                                                </div>
+                                            </div>
+
+                                            <h4 className="text-lg font-bold text-green-400 mb-4 mt-6">EQUITY</h4>
+                                            <div className="space-y-2">
+                                                {balanceSheet.equity.length > 0 ? (
+                                                    balanceSheet.equity.map((eq, idx) => (
+                                                        <div key={idx} className="flex justify-between text-sm">
+                                                            <span className="text-gray-300">{eq.account_name}</span>
+                                                            <span className="text-white font-semibold">${parseFloat(eq.balance).toFixed(2)}</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="text-sm text-gray-500">No equity accounts</div>
+                                                )}
+                                                <div className="border-t border-gray-700 pt-2 mt-4 flex justify-between font-bold">
+                                                    <span className="text-white">Total Equity</span>
+                                                    <span className="text-green-400">${balanceSheet.total_equity.toFixed(2)}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="border-t-2 border-gray-600 pt-4 mt-6 flex justify-between font-bold text-lg">
+                                                <span className="text-white">Total Liabilities & Equity</span>
+                                                <span className="text-primary">${balanceSheet.total_liabilities_and_equity.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Balance Check */}
+                                    <div className="mt-8 text-center">
+                                        {balanceSheet.is_balanced ? (
+                                            <div className="inline-flex items-center gap-2 bg-green-900/30 text-green-400 px-4 py-2 rounded-lg">
+                                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                </svg>
+                                                <span className="font-semibold">Balance Sheet is Balanced</span>
+                                            </div>
+                                        ) : (
+                                            <div className="inline-flex items-center gap-2 bg-red-900/30 text-red-400 px-4 py-2 rounded-lg">
+                                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                                </svg>
+                                                <span className="font-semibold">Balance Sheet is Out of Balance</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Accounts View */}
+                    {activeView === 'accounts' && (
+                        <div>
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-2xl font-bold text-white">Chart of Accounts</h3>
+                                <button
+                                    onClick={() => setShowCreateAccount(true)}
+                                    className="px-4 py-2 bg-primary hover:bg-primary-dark text-white font-semibold rounded-lg transition"
+                                >
+                                    + Create Account
+                                </button>
+                            </div>
+
+                            {/* Create Account Form */}
+                            {showCreateAccount && (
+                                <div className="bg-dark-secondary rounded-lg p-6 mb-6">
+                                    <h4 className="text-xl font-bold text-white mb-4">Create New Account</h4>
+                                    <form onSubmit={handleCreateAccount} className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-300 mb-2">
+                                                Account Name
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={newAccount.account_name}
+                                                onChange={(e) => setNewAccount({...newAccount, account_name: e.target.value})}
+                                                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                                                placeholder="e.g., Cash, Accounts Receivable"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-300 mb-2">
+                                                Account Type
+                                            </label>
+                                            <select
+                                                value={newAccount.account_type}
+                                                onChange={(e) => setNewAccount({...newAccount, account_type: e.target.value})}
+                                                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                                            >
+                                                <option value="ASSET">Asset</option>
+                                                <option value="LIABILITY">Liability</option>
+                                                <option value="EQUITY">Equity</option>
+                                                <option value="REVENUE">Revenue</option>
+                                                <option value="EXPENSE">Expense</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-300 mb-2">
+                                                Subtype (Optional)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={newAccount.subtype}
+                                                onChange={(e) => setNewAccount({...newAccount, subtype: e.target.value})}
+                                                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary"
+                                                placeholder="e.g., Current Asset, Fixed Asset"
+                                            />
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button
+                                                type="submit"
+                                                className="px-6 py-2 bg-primary hover:bg-primary-dark text-white font-semibold rounded-lg transition"
+                                            >
+                                                Create
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowCreateAccount(false);
+                                                    setNewAccount({ account_name: '', account_type: 'ASSET', subtype: '' });
+                                                }}
+                                                className="px-6 py-2 bg-dark-tertiary hover:bg-gray-700 text-white font-semibold rounded-lg transition"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            )}
+
+                            {/* Accounts List */}
+                            <div className="bg-dark-secondary rounded-lg overflow-hidden">
+                                <table className="w-full">
+                                    <thead>
+                                        <tr className="bg-dark-tertiary">
+                                            <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">Account Name</th>
+                                            <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">Type</th>
+                                            <th className="px-6 py-3 text-left text-sm font-semibold text-gray-300">Subtype</th>
+                                            <th className="px-6 py-3 text-right text-sm font-semibold text-gray-300">Balance</th>
+                                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-300">System</th>
+                                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-300">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-700">
+                                        {accounts.length > 0 ? (
+                                            accounts.map((account) => (
+                                                <tr key={account.account_id} className="hover:bg-dark-tertiary transition">
+                                                    <td className="px-6 py-4 text-white font-medium">{account.account_name}</td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded ${
+                                                            account.account_type === 'ASSET' ? 'bg-blue-900/30 text-blue-400' :
+                                                            account.account_type === 'LIABILITY' ? 'bg-red-900/30 text-red-400' :
+                                                            account.account_type === 'EQUITY' ? 'bg-green-900/30 text-green-400' :
+                                                            account.account_type === 'REVENUE' ? 'bg-yellow-900/30 text-yellow-400' :
+                                                            'bg-purple-900/30 text-purple-400'
+                                                        }`}>
+                                                            {account.account_type}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-gray-400 text-sm">{account.subtype || '-'}</td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <span className={`font-mono ${
+                                                            parseFloat(account.balance) >= 0 ? 'text-white' : 'text-red-400'
+                                                        }`}>
+                                                            ${parseFloat(account.balance).toFixed(2)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        {account.is_system ? (
+                                                            <span className="text-gray-500 text-sm">System</span>
+                                                        ) : (
+                                                            <span className="text-gray-400 text-sm">User</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        {!account.is_system && Math.abs(parseFloat(account.balance)) < 0.01 ? (
+                                                            <button
+                                                                onClick={() => handleDeleteAccount(account.account_id)}
+                                                                className="px-3 py-1 text-sm text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded transition"
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-gray-600 text-sm">-</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                                                    No accounts found. Create your first account to get started.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -1011,7 +1789,13 @@
                                             <span className="text-white">Artifact </span>
                                             <span className="text-primary">Live</span>
                                         </h1>
-                                        <p className="text-sm text-gray-300">Inventory & Operations - {businessName}</p>
+                                        <p className="text-sm text-gray-300">Inventory & Operations</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-center flex-1">
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-4xl leading-none">⌨️</span>
+                                        <h2 className="text-3xl font-bold text-white leading-none">Keyboard Kingdom</h2>
                                     </div>
                                 </div>
                                 <div className="flex items-center space-x-4">
@@ -1105,9 +1889,7 @@
                         )}
 
                         {activeTab === 'financials' && (
-                            <div className="text-center py-12">
-                                <p className="text-gray-400">Financial reports coming soon...</p>
-                            </div>
+                            <FinancialsTab user={user} businessId={businessId} />
                         )}
 
                         {activeTab === 'locations' && (

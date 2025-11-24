@@ -8,7 +8,7 @@
 
 > A production-ready inventory management system built on double-entry accounting principles, combining real-world supply chain operations with enterprise-grade financial tracking.
 
-## Table of Contents
+## 📋 Table of Contents
 
 - [About the Project](#about-the-project)
 - [Demo](#demo)
@@ -27,7 +27,7 @@
 - [License](#license)
 - [Contact](#contact)
 
-## About the Project
+## 📖 About the Project
 
 **Artifact Live** is a full-stack inventory management and operations system that brings enterprise-level tracking to small businesses and independent operations. Unlike typical inventory apps that focus solely on quantities, Artifact Live integrates **complete financial accounting** with operational management - tracking not just what you have, but what it's worth and how it impacts profitability.
 
@@ -70,13 +70,13 @@ Artifact Live provides:
 - [Digital Harvest](https://github.com/matthew-s-jenkins/digital-harvest-sim) - Business simulation that inspired this system's supply chain logic
 - [Perfect Books](https://github.com/matthew-s-jenkins/perfect-books) - Personal finance app that provides the accounting foundation
 
-## Demo
+## 🎬 Demo
 
 ### Interactive Dashboard
 
-![Artifact Live Demo](screenshots/dashboard.gif)
+![Artifact Live Demo](screenshots/Recording1.gif)
 
-*Multi-page interface for inventory management, purchase orders, sales tracking, and financial reporting.*
+*Multi-business workspace with inventory tracking, location management, fast ingestion wizard, and complete financial accounting integration.*
 
 ### FIFO Cost Layers
 
@@ -84,7 +84,7 @@ Artifact Live provides:
 
 *Real-time cost layer tracking showing how FIFO accounting calculates accurate COGS for each sale.*
 
-## Technical Challenges Solved
+## 🔧 Technical Challenges Solved
 
 ### 1. FIFO Cost Layer Management
 
@@ -135,43 +135,52 @@ This ensures the books always balance and profitability is accurate in real-time
 ## ✨ Core Features
 
 **Inventory Management**
-- Product Catalog: SKU, description, category, pricing, vendor mapping
-- Real-Time Quantities: Track available, committed, and on-order inventory
-- Multi-Location Support: Manage inventory across warehouses, stores, or bins
-- FIFO Cost Layers: Automatic cost tracking for accurate COGS
-- Reorder Points: Low inventory alerts and automatic reorder suggestions
-- Inventory Adjustments: Record shrinkage, damage, and physical counts
+- [x] Product catalog with SKU, description, category, pricing, vendor mapping
+- [x] Real-time quantity tracking with FIFO cost layers
+- [x] Multi-location support - track inventory across warehouses, stores, bins
+- [x] FIFO cost layers for accurate COGS calculation
+- [x] Fast ingestion wizard for batch inventory entry
+- [x] Location-based inventory breakdown and reporting
+- [ ] Reorder points with low inventory alerts
+- [ ] Inventory adjustments for shrinkage, damage, physical counts
 
 **Procurement & Vendor Management**
-- Vendor Catalog: Manage suppliers with contact info, terms, and lead times
-- Purchase Orders: Create, approve, and track POs through fulfillment
-- Receiving Workflow: Record receipts, match to POs, update cost layers
-- Partial Shipments: Handle split deliveries and backorders
-- Vendor Performance: Track on-time delivery, cost trends, and reliability
-- Purchase History: Complete audit trail of all vendor transactions
+- [ ] Vendor catalog with contact info, payment terms, lead times
+- [ ] Purchase order creation and approval workflow
+- [ ] Receiving workflow that updates cost layers
+- [ ] Partial shipment handling
+- [ ] Vendor performance tracking
+- [ ] Complete purchase history audit trail
 
 **Sales & Order Management**
-- Sales Order Processing: Record customer orders and reservations
-- Inventory Allocation: Commit inventory to orders before shipment
-- Profit Calculation: Real-time profit margins using FIFO costs
-- Order Fulfillment: Pick, pack, ship workflow with inventory updates
-- Customer Management: Track buyers, shipping addresses, and order history
-- Sales Analytics: Revenue trends, product performance, customer insights
+- [ ] Sales order processing and customer reservations
+- [ ] Inventory allocation before shipment
+- [ ] Real-time profit margin calculation using FIFO costs
+- [ ] Pick, pack, ship fulfillment workflow
+- [ ] Customer management and order history
+- [ ] Sales analytics and product performance reporting
 
 **Financial Accounting**
-- Double-Entry Ledger: Complete transaction history with balanced entries
-- COGS Automation: Accurate cost of goods sold calculated on every sale
-- P&L Reporting: Revenue, COGS, gross profit, and operating expenses
-- Inventory Valuation: Real-time asset value based on FIFO cost layers
-- Accounts Payable: Track vendor invoices and payment obligations
-- Accounts Receivable: Manage customer payments and outstanding balances
+- [x] Double-entry ledger with complete transaction history
+- [x] Chart of accounts management (Assets, Liabilities, Equity, Revenue, Expense)
+- [x] Real-time accounting equation tracking (Assets = Liabilities + Equity)
+- [x] Trial balance with debit/credit totals
+- [x] Balance sheet generation
+- [x] Ledger view showing transaction impacts on the accounting equation
+- [x] Transaction reversal for manual entries
+- [x] COGS automation via FIFO cost layers
+- [x] Real-time inventory valuation
+- [ ] P&L reporting (Income Statement)
+- [ ] Accounts payable tracking
+- [ ] Accounts receivable management
 
 **Security & Multi-User**
-- User Authentication: Secure registration and login with bcrypt (from Perfect Books)
-- Session Management: Flask-Login for secure session handling
-- Data Isolation: Complete segregation - users can only see their own data
-- Role-Based Access: Support for multiple users with different permission levels
-- Audit Trail: Immutable transaction log for compliance
+- [x] User authentication with bcrypt + Google OAuth
+- [x] Session management via Flask-Login
+- [x] Complete data isolation between users
+- [x] Multi-business/workspace support
+- [x] Immutable audit trail with transaction UUIDs
+- [ ] Role-based access control
 
 ## 🛠️ Tech Stack
 
@@ -185,7 +194,7 @@ This ensures the books always balance and profitability is accurate in real-time
 | **Security** | bcrypt | Password hashing and authentication |
 | **Analytics** | Power BI / Tableau | Business intelligence dashboards (planned) |
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
@@ -249,7 +258,7 @@ Before running Artifact Live, ensure you have:
    - First visit: Click "Register" to create an account
    - Subsequent visits: Login with your credentials
 
-## Architecture
+## 🏗️ Architecture
 
 ### Stateless Design
 
@@ -303,7 +312,7 @@ DR: COGS              $30   (increase expense)
 CR: Inventory         $30   (decrease asset)
 ```
 
-## Database Schema
+## 💾 Database Schema
 
 The database follows **normalized design principles** with referential integrity:
 
@@ -387,69 +396,66 @@ The database follows **normalized design principles** with referential integrity
 | GET | `/api/financials/pl` | ✓ | Get P&L statement |
 | GET | `/api/financials/inventory_value` | ✓ | Get inventory valuation |
 
-## Roadmap
+## 🗺️ Roadmap
 
-### In Development (v1.0 - MVP)
+### Current Status (v1.0 - MVP)
 
-This project is currently in active development. The README represents the planned architecture and feature set.
+**Phase 1: Foundation** ✅
+- [x] Database schema and setup
+- [x] User authentication (bcrypt + Google OAuth)
+- [x] Product catalog
+- [x] Basic inventory tracking
+- [x] Theme system (6 color options)
+- [x] Multi-business/workspace support
 
-**Phase 1: Foundation (Current)**
-- [x] Database schema design and setup
-- [x] User authentication system (Google OAuth)
-- [x] Basic product catalog
-- [x] Simple inventory tracking
-- [x] Login/registration screens
-- [x] Theme system with 6 color options
-- [x] GUI server control panel
-- [x] Multi-business support (home page/workspace selector)
-
-**Phase 2: Core Operations**
-- [ ] Business/workspace dashboard
-- [ ] Purchase order creation
-- [ ] Inventory receiving workflow
-- [ ] FIFO cost layer tracking
+**Phase 2: Core Operations** (In Progress)
+- [x] Business dashboard with Inventory, Locations, Ingestion, and Financials tabs
+- [x] Location management system
+- [x] Multi-location inventory tracking
+- [x] Fast ingestion wizard with batch entry
+- [x] FIFO cost layer tracking
+- [x] Chart of accounts (all 5 account types)
+- [x] Double-entry ledger integration
+- [x] Accounting equation display
+- [x] Trial balance
+- [x] Balance sheet
+- [x] Ledger view with transaction-by-transaction equation impacts
+- [x] Transaction reversal (manual entries only)
+- [ ] Purchase order creation and management
 - [ ] Sales order processing
-- [ ] Double-entry ledger integration
-- [ ] **Kitting/Assembly System (BOM)**
-  - [ ] Parent-child product relationships (Bill of Materials)
-  - [ ] Component consumption on assembly
-  - [ ] Advanced keyboard build system:
-    - [ ] Keycap set definition (which keys included)
-    - [ ] Keyboard layout requirements (which keys needed)
-    - [ ] Automatic compatibility validation
-    - [ ] Component substitution rules
-  - [ ] Assembly cost rollup (materials + labor)
-  - [ ] Inventory depletion on sale of assembled items
+- [ ] Kitting/assembly system (BOM)
+  - [ ] Parent-child product relationships
+  - [ ] Component consumption tracking
+  - [ ] Keyboard-specific features (keycap compatibility, layout validation)
+  - [ ] Assembly cost rollup
+  - [ ] Inventory depletion on kit sales
 
-**Phase 3: Financial Integration**
-- [ ] COGS calculation automation
+**Phase 3: Financial Integration** (Partial)
+- [x] COGS automation via FIFO
+- [x] Real-time inventory valuation
+- [x] Basic financial reporting (Ledger, Trial Balance, Balance Sheet)
 - [ ] P&L reporting
-- [ ] Inventory valuation
 - [ ] Vendor management
-- [ ] Basic analytics dashboard
+- [ ] Analytics dashboard
 
-### Planned Features (v2.0)
+### Planned Features (v2.0+)
 
-- [ ] **Power BI Dashboard Integration** - Live connection for advanced analytics
-- [ ] **Barcode scanning** - Mobile app for warehouse operations
-- [ ] **Automated reorder points** - Intelligent replenishment suggestions
-- [ ] **Advanced reporting** - Inventory turnover, vendor performance, profitability by product
-- [ ] **Multi-currency support** - For international vendors
-- [ ] **Serialized inventory** - Track individual units (serial numbers, lots)
-- [ ] **Returns management** - Handle customer returns and vendor RMAs
-- [ ] **Shipping integration** - Connect to UPS, FedEx, USPS APIs
-- [ ] **Customer portal** - Allow customers to view orders and track shipments
-
-### Future Enhancements
-
-- [ ] Mobile app (React Native)
+- [ ] Power BI dashboard integration
+- [ ] Barcode scanning via mobile app
+- [ ] Automated reorder points
+- [ ] Advanced reporting (turnover, vendor performance, profitability)
+- [ ] Multi-currency support
+- [ ] Serialized inventory tracking
+- [ ] Returns management (customer + vendor RMAs)
+- [ ] Shipping API integration (UPS, FedEx, USPS)
+- [ ] Customer portal
 - [ ] Marketplace integrations (Amazon, eBay, Shopify)
-- [ ] Advanced demand forecasting
-- [ ] Warehouse management system (WMS) features
-- [ ] EDI integration for enterprise vendors
-- [ ] Multi-warehouse distribution optimization
+- [ ] Demand forecasting
+- [ ] WMS features
+- [ ] EDI integration
+- [ ] Multi-warehouse optimization
 
-## Related Projects
+## 🔗 Related Projects
 
 ### Digital Harvest - Business Simulation Engine
 
@@ -481,7 +487,7 @@ Artifact Live uses the authentication and accounting foundation from [Perfect Bo
 - Flask + React + MySQL stack
 - Stateless API design
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! This project is ideal for:
 - **Students** learning about inventory management, accounting, or full-stack development
@@ -496,18 +502,18 @@ Contributions are welcome! This project is ideal for:
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## License
+## 📄 License
 
 This project is open source and available under the [MIT License](LICENSE).
 
-## Contact
+## 📧 Contact
 
 **Matthew Jenkins**
 - GitHub: [@matthew-s-jenkins](https://github.com/matthew-s-jenkins)
 - LinkedIn: [linkedin.com/in/matthew-s-jenkins](https://www.linkedin.com/in/matthew-s-jenkins/)
 - Email: [mjenkins87@live.com](mailto:mjenkins87@live.com)
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
 - MySQL for robust relational database management
 - Flask for lightweight, powerful API development

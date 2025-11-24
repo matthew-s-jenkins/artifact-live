@@ -39,3 +39,11 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Utility/test scripts (keep locally but don't commit)
+check_db.py
+test_db.py
+fix_db.py
+create_location.py
+update_users_table.sql
+setup_db.py

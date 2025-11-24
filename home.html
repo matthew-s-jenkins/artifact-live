@@ -4,6 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Artifact Live - My Businesses</title>
+
+    <!-- Apply theme background IMMEDIATELY to prevent white flash -->
+    <script>
+        (function() {
+            const themeColors = {
+                cyan: '#111827',
+                tan: '#1c1917',
+                purple: '#151621',
+                emerald: '#111f1b',
+                rose: '#121012',
+                slate: '#0a0a0a'
+            };
+            const savedTheme = localStorage.getItem('theme') || 'cyan';
+            document.documentElement.style.backgroundColor = themeColors[savedTheme];
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -106,7 +124,9 @@
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <h1 className="text-2xl font-bold text-white">Artifact Live</h1>
+                                    <h1 className="text-2xl font-bold text-white">
+                                        Artifact <span className="text-primary">Live</span>
+                                    </h1>
                                     <p className="text-sm text-gray-300">Welcome back, {user?.username || 'User'}</p>
                                 </div>
                                 <div className="flex items-center space-x-4">

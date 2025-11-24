@@ -14,6 +14,8 @@ from google_auth_oauthlib.flow import Flow
 from ingest_api import ingest_bp
 from locations_api import locations_bp
 from inventory_api import inventory_bp
+from financials_api import financials_bp
+from accounts_api import accounts_api_bp
 
 # Load environment variables
 load_dotenv()
@@ -39,6 +41,8 @@ login_manager.init_app(app)
 app.register_blueprint(ingest_bp)
 app.register_blueprint(locations_bp)
 app.register_blueprint(inventory_bp)
+app.register_blueprint(financials_bp)
+app.register_blueprint(accounts_api_bp)
 
 # Database configuration
 DB_CONFIG = {
@@ -113,7 +117,9 @@ def load_user(user_id):
 
 @app.route('/')
 def index():
-    """Serve the login/index page"""
+    """Serve the login/index page or redirect to home if logged in"""
+    if current_user.is_authenticated:
+        return redirect('/home.html')
     return send_from_directory('.', 'index.html')
 
 @app.route('/home.html')
@@ -123,7 +129,11 @@ def home():
 
 @app.route('/dashboard.html')
 def dashboard():
-    """Serve the dashboard page"""
+    """Serve the dashboard page - requires business_id parameter"""
+    business_id = request.args.get('business_id')
+    if not business_id:
+        # Redirect to home page if no business selected
+        return redirect('/home.html')
     return send_from_directory('.', 'dashboard.html')
 
 # ============================================================================
