@@ -72,17 +72,9 @@ Artifact Live provides:
 
 ## 🎬 Demo
 
-### Interactive Dashboard
-
 ![Artifact Live Demo](screenshots/Recording1.gif)
 
 *Multi-business workspace with inventory tracking, location management, fast ingestion wizard, and complete financial accounting integration.*
-
-### FIFO Cost Layers
-
-![FIFO Costing](screenshots/fifo-layers.png)
-
-*Real-time cost layer tracking showing how FIFO accounting calculates accurate COGS for each sale.*
 
 ## 🔧 Technical Challenges Solved
 
