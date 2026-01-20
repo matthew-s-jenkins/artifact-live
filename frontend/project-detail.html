@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Detail - Artifact Live</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="themes.js"></script>
+    <style>
+        :root {
+            --color-bg: #111827;
+            --color-bg-secondary: #1f2937;
+            --color-bg-tertiary: #374151;
+            --color-bg-hover: #4b5563;
+            --color-text: #f9fafb;
+            --color-text-secondary: #d1d5db;
+            --color-text-muted: #9ca3af;
+            --color-border: #4b5563;
+            --color-border-light: #374151;
+            --color-primary: #06b6d4;
+            --color-primary-hover: #0891b2;
+            --color-primary-light: #22d3ee;
+            --color-success: #10b981;
+            --color-success-light: #34d399;
+            --color-danger: #ef4444;
+            --color-danger-light: #f87171;
+            --color-warning: #f59e0b;
+            --color-warning-light: #fbbf24;
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+    </style>
+</head>
+<body style="background-color: var(--color-bg); color: var(--color-text);">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_BASE_URL = '';
+
+        // Theme management
+        const applyTheme = (themeName) => {
+            const theme = THEMES[themeName] || THEMES[DEFAULT_THEME];
+            const root = document.documentElement;
+            Object.entries(theme.colors).forEach(([key, value]) => {
+                const cssVarName = `--color-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+                root.style.setProperty(cssVarName, value);
+            });
+            localStorage.setItem('theme', themeName);
+        };
+
+        const loadSavedTheme = () => {
+            const savedTheme = localStorage.getItem('theme') || DEFAULT_THEME;
+            applyTheme(savedTheme);
+            return savedTheme;
+        };
+
+        loadSavedTheme();
+
+        // Status badge colors
+        const STATUS_COLORS = {
+            ACQUIRED: { bg: '#3b82f6', text: '#ffffff' },
+            PARTING: { bg: '#f59e0b', text: '#000000' },
+            LISTED: { bg: '#f97316', text: '#ffffff' },
+            SOLD: { bg: '#10b981', text: '#ffffff' },
+            COMPLETE: { bg: '#6b7280', text: '#ffffff' }
+        };
+
+        const PART_STATUS_COLORS = {
+            IN_SYSTEM: { bg: '#3b82f6', text: '#ffffff' },
+            LISTED: { bg: '#f97316', text: '#ffffff' },
+            SOLD: { bg: '#10b981', text: '#ffffff' },
+            KEPT: { bg: '#8b5cf6', text: '#ffffff' },
+            TRASHED: { bg: '#ef4444', text: '#ffffff' },
+            IN_PROJECT: { bg: '#6b7280', text: '#ffffff' }
+        };
+
+        // Format currency
+        const formatCurrency = (value) => {
+            if (value === null || value === undefined) return '$0.00';
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+        };
+
+        // Get project ID from URL
+        const getProjectId = () => {
+            const match = window.location.pathname.match(/\/project\/(\d+)/);
+            return match ? parseInt(match[1]) : null;
+        };
+
+        // Status Badge Component
+        function StatusBadge({ status, colors = STATUS_COLORS }) {
+            const colorSet = colors[status] || colors.IN_SYSTEM || { bg: '#6b7280', text: '#ffffff' };
+            return (
+                <span className="text-xs px-2 py-1 rounded font-medium" style={{ backgroundColor: colorSet.bg, color: colorSet.text }}>
+                    {status}
+                </span>
+            );
+        }
+
+        // Modal Component
+        function Modal({ isOpen, onClose, title, children, wide = false }) {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay">
+                    <div
+                        className={`rounded-lg shadow-xl mx-4 max-h-[90vh] overflow-y-auto ${wide ? 'max-w-2xl w-full' : 'max-w-lg w-full'}`}
+                        style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+                    >
+                        <div className="flex justify-between items-center p-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                            <h3 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>{title}</h3>
+                            <button onClick={onClose} className="text-2xl leading-none hover:opacity-70" style={{ color: 'var(--color-text-muted)' }}>&times;</button>
+                        </div>
+                        <div className="p-4">{children}</div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Financial Summary Panel
+        function FinancialSummary({ summary, project }) {
+            if (!summary) return null;
+
+            const profit = summary.projected_profit || 0;
+            const profitColor = profit >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+            const margin = summary.profit_margin_percent || 0;
+            const marginColor = margin >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+
+            return (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+                    {/* Acquisition */}
+                    <div>
+                        <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Acquisition Cost</div>
+                        <div className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>{formatCurrency(summary.acquisition_cost)}</div>
+                    </div>
+                    <div>
+                        <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Break-Even/Part</div>
+                        <div className="text-lg font-bold" style={{ color: 'var(--color-warning)' }}>{formatCurrency(summary.break_even_per_part)}</div>
+                    </div>
+
+                    {/* Parts */}
+                    <div>
+                        <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Parts Total</div>
+                        <div className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>{summary.parts_total}</div>
+                        <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                            {summary.parts_for_sale} for sale, {summary.parts_sold} sold
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Estimated Value</div>
+                        <div className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>{formatCurrency(summary.total_estimated_value)}</div>
+                    </div>
+
+                    {/* Fees & Shipping */}
+                    <div>
+                        <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Est. Fees</div>
+                        <div className="text-lg font-bold" style={{ color: 'var(--color-danger)' }}>-{formatCurrency(summary.total_estimated_fees)}</div>
+                    </div>
+                    <div>
+                        <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Est. Shipping</div>
+                        <div className="text-lg font-bold" style={{ color: 'var(--color-danger)' }}>-{formatCurrency(summary.total_estimated_shipping)}</div>
+                    </div>
+
+                    {/* Projected */}
+                    <div>
+                        <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Projected Net</div>
+                        <div className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>{formatCurrency(summary.projected_net_revenue)}</div>
+                    </div>
+                    <div>
+                        <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Projected Profit</div>
+                        <div className="text-lg font-bold" style={{ color: profitColor }}>{formatCurrency(profit)}</div>
+                        <div className="text-xs" style={{ color: marginColor }}>{margin.toFixed(1)}% margin</div>
+                    </div>
+
+                    {/* Actual (if any sales) */}
+                    {summary.parts_sold > 0 && (
+                        <>
+                            <div className="col-span-2 md:col-span-4 border-t pt-3 mt-2" style={{ borderColor: 'var(--color-border)' }}>
+                                <div className="text-sm font-medium mb-2" style={{ color: 'var(--color-text-secondary)' }}>Actual Results (Sold Parts)</div>
+                            </div>
+                            <div>
+                                <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Actual Revenue</div>
+                                <div className="text-lg font-bold" style={{ color: 'var(--color-success)' }}>{formatCurrency(summary.actual_revenue)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Actual Fees</div>
+                                <div className="text-lg font-bold" style={{ color: 'var(--color-danger)' }}>-{formatCurrency(summary.actual_fees)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Actual Shipping</div>
+                                <div className="text-lg font-bold" style={{ color: 'var(--color-danger)' }}>-{formatCurrency(summary.actual_shipping)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>Actual Profit</div>
+                                <div className="text-lg font-bold" style={{ color: summary.actual_profit >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                                    {formatCurrency(summary.actual_profit)}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+            );
+        }
+
+        // Part Form Component
+        function PartForm({ part, projectId, catalog, onSubmit, onCancel }) {
+            const [formData, setFormData] = useState({
+                catalog_id: part?.catalog_id || '',
+                custom_name: part?.custom_name || '',
+                serial_number: part?.serial_number || '',
+                condition: part?.condition || 'Used-Good',
+                weight_class: part?.weight_class || 'medium',
+                estimated_value: part?.estimated_value || '',
+                status: part?.status || 'IN_SYSTEM',
+                listing_url: part?.listing_url || '',
+                actual_sale_price: part?.actual_sale_price || '',
+                shipping_paid: part?.shipping_paid || '',
+                fees_paid: part?.fees_paid || '',
+                sold_date: part?.sold_date || '',
+                notes: part?.notes || '',
+                set_id: part?.set_id || ''
+            });
+            const [useCustom, setUseCustom] = useState(!part?.catalog_id);
+            const [saving, setSaving] = useState(false);
+
+            const handleChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                try {
+                    const submitData = {
+                        ...formData,
+                        catalog_id: useCustom ? null : (formData.catalog_id ? parseInt(formData.catalog_id) : null),
+                        custom_name: useCustom ? formData.custom_name : null,
+                        estimated_value: formData.estimated_value ? parseFloat(formData.estimated_value) : null,
+                        actual_sale_price: formData.actual_sale_price ? parseFloat(formData.actual_sale_price) : null,
+                        shipping_paid: formData.shipping_paid ? parseFloat(formData.shipping_paid) : null,
+                        fees_paid: formData.fees_paid ? parseFloat(formData.fees_paid) : null
+                    };
+                    await onSubmit(submitData);
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const inputStyle = {
+                backgroundColor: 'var(--color-bg-tertiary)',
+                color: 'var(--color-text)',
+                borderColor: 'var(--color-border)'
+            };
+
+            return (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Part Type Toggle */}
+                    <div className="flex space-x-4 mb-4">
+                        <button
+                            type="button"
+                            onClick={() => setUseCustom(false)}
+                            className={`px-4 py-2 rounded text-sm ${!useCustom ? 'font-bold' : ''}`}
+                            style={{
+                                backgroundColor: !useCustom ? 'var(--color-primary)' : 'var(--color-bg-tertiary)',
+                                color: 'var(--color-text)'
+                            }}
+                        >
+                            From Catalog
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setUseCustom(true)}
+                            className={`px-4 py-2 rounded text-sm ${useCustom ? 'font-bold' : ''}`}
+                            style={{
+                                backgroundColor: useCustom ? 'var(--color-primary)' : 'var(--color-bg-tertiary)',
+                                color: 'var(--color-text)'
+                            }}
+                        >
+                            Custom Part
+                        </button>
+                    </div>
+
+                    {/* Catalog or Custom Name */}
+                    {useCustom ? (
+                        <div>
+                            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Part Name *</label>
+                            <input
+                                type="text"
+                                name="custom_name"
+                                value={formData.custom_name}
+                                onChange={handleChange}
+                                required={useCustom}
+                                className="w-full px-3 py-2 rounded border focus:outline-none"
+                                style={inputStyle}
+                                placeholder="e.g., Intel i7-7700"
+                            />
+                        </div>
+                    ) : (
+                        <div>
+                            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Select from Catalog *</label>
+                            <select
+                                name="catalog_id"
+                                value={formData.catalog_id}
+                                onChange={handleChange}
+                                required={!useCustom}
+                                className="w-full px-3 py-2 rounded border focus:outline-none"
+                                style={inputStyle}
+                            >
+                                <option value="">-- Select Part --</option>
+                                {catalog.map(item => (
+                                    <option key={item.catalog_id} value={item.catalog_id}>
+                                        [{item.category}] {item.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Condition</label>
+                            <select name="condition" value={formData.condition} onChange={handleChange} className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle}>
+                                <option value="New">New</option>
+                                <option value="Used-Like New">Used-Like New</option>
+                                <option value="Used-Good">Used-Good</option>
+                                <option value="For Parts">For Parts</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Weight Class</label>
+                            <select name="weight_class" value={formData.weight_class} onChange={handleChange} className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle}>
+                                <option value="light">Light (&lt;1lb)</option>
+                                <option value="medium">Medium (1-5lb)</option>
+                                <option value="heavy">Heavy (5lb+)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Estimated Value</label>
+                            <input type="number" name="estimated_value" value={formData.estimated_value} onChange={handleChange} step="0.01" min="0" className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle} placeholder="0.00" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Status</label>
+                            <select name="status" value={formData.status} onChange={handleChange} className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle}>
+                                <option value="IN_SYSTEM">In System</option>
+                                <option value="LISTED">Listed</option>
+                                <option value="SOLD">Sold</option>
+                                <option value="KEPT">Kept</option>
+                                <option value="TRASHED">Trashed</option>
+                                <option value="IN_PROJECT">In Project</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Serial Number (optional)</label>
+                        <input type="text" name="serial_number" value={formData.serial_number} onChange={handleChange} className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle} />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Listing URL (optional)</label>
+                        <input type="url" name="listing_url" value={formData.listing_url} onChange={handleChange} className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle} placeholder="https://ebay.com/itm/..." />
+                    </div>
+
+                    {/* Sale Details (show when status is SOLD) */}
+                    {formData.status === 'SOLD' && (
+                        <div className="p-3 rounded border" style={{ borderColor: 'var(--color-success)', backgroundColor: 'var(--color-bg)' }}>
+                            <div className="text-sm font-medium mb-3" style={{ color: 'var(--color-success)' }}>Sale Details</div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>Sale Price</label>
+                                    <input type="number" name="actual_sale_price" value={formData.actual_sale_price} onChange={handleChange} step="0.01" min="0" className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>Sold Date</label>
+                                    <input type="date" name="sold_date" value={formData.sold_date} onChange={handleChange} className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>Fees Paid</label>
+                                    <input type="number" name="fees_paid" value={formData.fees_paid} onChange={handleChange} step="0.01" min="0" className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>Shipping Paid</label>
+                                    <input type="number" name="shipping_paid" value={formData.shipping_paid} onChange={handleChange} step="0.01" min="0" className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div>
+                        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Set ID (optional - group parts sold together)</label>
+                        <input type="text" name="set_id" value={formData.set_id} onChange={handleChange} className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle} placeholder="e.g., ram-kit-001" />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>Notes</label>
+                        <textarea name="notes" value={formData.notes} onChange={handleChange} rows="2" className="w-full px-3 py-2 rounded border focus:outline-none" style={inputStyle} />
+                    </div>
+
+                    <div className="flex justify-end space-x-3 pt-4">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 rounded border" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}>Cancel</button>
+                        <button type="submit" disabled={saving} className="px-4 py-2 rounded font-medium" style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-text)' }}>
+                            {saving ? 'Saving...' : (part ? 'Update Part' : 'Add Part')}
+                        </button>
+                    </div>
+                </form>
+            );
+        }
+
+        // Quick Add Buttons
+        function QuickAddButtons({ onQuickAdd }) {
+            const commonParts = [
+                { category: 'CPU', name: 'CPU' },
+                { category: 'GPU', name: 'GPU' },
+                { category: 'RAM', name: 'RAM' },
+                { category: 'Motherboard', name: 'Mobo' },
+                { category: 'Storage', name: 'Storage' },
+                { category: 'Power Supply', name: 'PSU' },
+                { category: 'Case', name: 'Case' },
+                { category: 'Cooling', name: 'Cooler' }
+            ];
+
+            return (
+                <div className="flex flex-wrap gap-2">
+                    {commonParts.map(part => (
+                        <button
+                            key={part.category}
+                            onClick={() => onQuickAdd(part.category)}
+                            className="text-xs px-3 py-1 rounded"
+                            style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}
+                        >
+                            + {part.name}
+                        </button>
+                    ))}
+                </div>
+            );
+        }
+
+        // Parts Table Component
+        function PartsTable({ parts, onEdit, onDelete, selectedParts, onToggleSelect, onSelectAll }) {
+            const allSelected = parts.length > 0 && selectedParts.length === parts.length;
+
+            return (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+                                <th className="p-3 text-left">
+                                    <input
+                                        type="checkbox"
+                                        checked={allSelected}
+                                        onChange={() => onSelectAll(!allSelected)}
+                                        className="rounded"
+                                    />
+                                </th>
+                                <th className="p-3 text-left" style={{ color: 'var(--color-text-secondary)' }}>Part</th>
+                                <th className="p-3 text-left" style={{ color: 'var(--color-text-secondary)' }}>Condition</th>
+                                <th className="p-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>Est. Value</th>
+                                <th className="p-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>Sale Price</th>
+                                <th className="p-3 text-center" style={{ color: 'var(--color-text-secondary)' }}>Status</th>
+                                <th className="p-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {parts.map(part => {
+                                const partName = part.custom_name || part.catalog_name || `Part #${part.part_id}`;
+                                const isSelected = selectedParts.includes(part.part_id);
+
+                                return (
+                                    <tr
+                                        key={part.part_id}
+                                        className="border-b"
+                                        style={{
+                                            borderColor: 'var(--color-border-light)',
+                                            backgroundColor: isSelected ? 'var(--color-bg-tertiary)' : 'transparent'
+                                        }}
+                                    >
+                                        <td className="p-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => onToggleSelect(part.part_id)}
+                                                className="rounded"
+                                            />
+                                        </td>
+                                        <td className="p-3">
+                                            <div style={{ color: 'var(--color-text)' }}>{partName}</div>
+                                            {part.catalog_category && (
+                                                <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{part.catalog_category}</div>
+                                            )}
+                                            {part.set_id && (
+                                                <div className="text-xs" style={{ color: 'var(--color-primary)' }}>Set: {part.set_id}</div>
+                                            )}
+                                        </td>
+                                        <td className="p-3" style={{ color: 'var(--color-text-secondary)' }}>{part.condition || '-'}</td>
+                                        <td className="p-3 text-right" style={{ color: 'var(--color-text-secondary)' }}>
+                                            {part.estimated_value ? formatCurrency(part.estimated_value) : '-'}
+                                        </td>
+                                        <td className="p-3 text-right" style={{ color: part.actual_sale_price ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                                            {part.actual_sale_price ? formatCurrency(part.actual_sale_price) : '-'}
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <StatusBadge status={part.status} colors={PART_STATUS_COLORS} />
+                                        </td>
+                                        <td className="p-3 text-right">
+                                            <button
+                                                onClick={() => onEdit(part)}
+                                                className="text-xs px-2 py-1 rounded mr-1"
+                                                style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => onDelete(part)}
+                                                className="text-xs px-2 py-1 rounded"
+                                                style={{ backgroundColor: 'var(--color-danger)', color: 'var(--color-text)' }}
+                                            >
+                                                Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        }
+
+        // Bulk Status Update Component
+        function BulkStatusUpdate({ selectedCount, onUpdateStatus, onCancel }) {
+            const [newStatus, setNewStatus] = useState('');
+
+            return (
+                <div className="flex items-center space-x-3 p-3 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+                    <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                        {selectedCount} part{selectedCount > 1 ? 's' : ''} selected
+                    </span>
+                    <select
+                        value={newStatus}
+                        onChange={e => setNewStatus(e.target.value)}
+                        className="px-3 py-1 rounded border text-sm"
+                        style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }}
+                    >
+                        <option value="">Change status to...</option>
+                        <option value="IN_SYSTEM">In System</option>
+                        <option value="LISTED">Listed</option>
+                        <option value="SOLD">Sold</option>
+                        <option value="KEPT">Kept</option>
+                        <option value="TRASHED">Trashed</option>
+                    </select>
+                    <button
+                        onClick={() => newStatus && onUpdateStatus(newStatus)}
+                        disabled={!newStatus}
+                        className="px-3 py-1 rounded text-sm font-medium"
+                        style={{ backgroundColor: newStatus ? 'var(--color-primary)' : 'var(--color-bg-hover)', color: 'var(--color-text)' }}
+                    >
+                        Apply
+                    </button>
+                    <button
+                        onClick={onCancel}
+                        className="px-3 py-1 rounded text-sm"
+                        style={{ backgroundColor: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)' }}
+                    >
+                        Clear
+                    </button>
+                </div>
+            );
+        }
+
+        // Main Project Detail Page Component
+        function ProjectDetailPage() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [project, setProject] = useState(null);
+            const [summary, setSummary] = useState(null);
+            const [parts, setParts] = useState([]);
+            const [catalog, setCatalog] = useState([]);
+            const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('theme') || DEFAULT_THEME);
+
+            // Modal states
+            const [showAddPart, setShowAddPart] = useState(false);
+            const [editingPart, setEditingPart] = useState(null);
+            const [deletingPart, setDeletingPart] = useState(null);
+            const [quickAddCategory, setQuickAddCategory] = useState(null);
+
+            // Selection state
+            const [selectedParts, setSelectedParts] = useState([]);
+
+            // Messages
+            const [message, setMessage] = useState(null);
+
+            const projectId = getProjectId();
+
+            useEffect(() => {
+                checkAuth();
+            }, []);
+
+            useEffect(() => {
+                if (user && projectId) {
+                    loadProject();
+                    loadParts();
+                    loadCatalog();
+                }
+            }, [user, projectId]);
+
+            const checkAuth = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/check_auth`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.authenticated) {
+                        setUser(data.user);
+                    } else {
+                        window.location.href = '/login';
+                    }
+                } catch (err) {
+                    window.location.href = '/login';
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadProject = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/summary`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        setProject(data.project);
+                        setSummary(data.summary);
+                    }
+                } catch (err) {
+                    console.error('Failed to load project:', err);
+                }
+            };
+
+            const loadParts = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/parts`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        setParts(data.parts);
+                    }
+                } catch (err) {
+                    console.error('Failed to load parts:', err);
+                }
+            };
+
+            const loadCatalog = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/catalog`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        setCatalog(data.catalog);
+                    }
+                } catch (err) {
+                    console.error('Failed to load catalog:', err);
+                }
+            };
+
+            const handleThemeChange = (e) => {
+                const newTheme = e.target.value;
+                setCurrentTheme(newTheme);
+                applyTheme(newTheme);
+            };
+
+            const handleLogout = async () => {
+                try {
+                    await fetch(`${API_BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' });
+                    window.location.href = '/login';
+                } catch (err) {
+                    console.error('Logout failed:', err);
+                }
+            };
+
+            const showMsg = (text, type = 'success') => {
+                setMessage({ text, type });
+                setTimeout(() => setMessage(null), 3000);
+            };
+
+            const handleAddPart = async (formData) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/parts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(formData)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setShowAddPart(false);
+                        setQuickAddCategory(null);
+                        loadParts();
+                        loadProject();
+                        showMsg('Part added successfully!');
+                    } else {
+                        showMsg(data.message || 'Failed to add part', 'error');
+                    }
+                } catch (err) {
+                    showMsg('Failed to add part', 'error');
+                }
+            };
+
+            const handleUpdatePart = async (formData) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/parts/${editingPart.part_id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(formData)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setEditingPart(null);
+                        loadParts();
+                        loadProject();
+                        showMsg('Part updated successfully!');
+                    } else {
+                        showMsg(data.message || 'Failed to update part', 'error');
+                    }
+                } catch (err) {
+                    showMsg('Failed to update part', 'error');
+                }
+            };
+
+            const handleDeletePart = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/parts/${deletingPart.part_id}`, {
+                        method: 'DELETE',
+                        credentials: 'include'
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setDeletingPart(null);
+                        loadParts();
+                        loadProject();
+                        showMsg('Part deleted successfully!');
+                    } else {
+                        showMsg(data.message || 'Failed to delete part', 'error');
+                    }
+                } catch (err) {
+                    showMsg('Failed to delete part', 'error');
+                }
+            };
+
+            const handleQuickAdd = (category) => {
+                setQuickAddCategory(category);
+                setShowAddPart(true);
+            };
+
+            const handleToggleSelect = (partId) => {
+                setSelectedParts(prev =>
+                    prev.includes(partId)
+                        ? prev.filter(id => id !== partId)
+                        : [...prev, partId]
+                );
+            };
+
+            const handleSelectAll = (selectAll) => {
+                setSelectedParts(selectAll ? parts.map(p => p.part_id) : []);
+            };
+
+            const handleBulkStatusUpdate = async (newStatus) => {
+                try {
+                    for (const partId of selectedParts) {
+                        await fetch(`${API_BASE_URL}/api/parts/${partId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ status: newStatus })
+                        });
+                    }
+                    setSelectedParts([]);
+                    loadParts();
+                    loadProject();
+                    showMsg(`Updated ${selectedParts.length} part(s) to ${newStatus}`);
+                } catch (err) {
+                    showMsg('Failed to update parts', 'error');
+                }
+            };
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto" style={{ borderColor: 'var(--color-primary)' }}></div>
+                            <p className="mt-4" style={{ color: 'var(--color-text-muted)' }}>Loading...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!project) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <div className="text-center">
+                            <p style={{ color: 'var(--color-text-muted)' }}>Project not found</p>
+                            <a href="/projects" className="text-sm mt-4 inline-block" style={{ color: 'var(--color-primary)' }}>Back to Projects</a>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen">
+                    {/* Navigation */}
+                    <nav className="px-4 py-3 shadow-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                        <div className="max-w-7xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center space-x-6">
+                                <a href="/dashboard" className="text-xl font-bold" style={{ color: 'var(--color-primary)' }}>Artifact Live</a>
+                                <a href="/projects" className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Projects</a>
+                                <span style={{ color: 'var(--color-text-muted)' }}>/</span>
+                                <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{project.name}</span>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <select value={currentTheme} onChange={handleThemeChange} style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }} className="px-2 py-1 rounded text-xs focus:outline-none">
+                                    {Object.keys(THEMES).map(themeKey => (
+                                        <option key={themeKey} value={themeKey}>{THEMES[themeKey].name}</option>
+                                    ))}
+                                </select>
+                                <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{user?.email}</span>
+                                <button onClick={handleLogout} className="text-sm px-3 py-1 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>Sign Out</button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Toast */}
+                    {message && (
+                        <div className="fixed top-4 right-4 z-50 px-4 py-3 rounded shadow-lg" style={{ backgroundColor: message.type === 'error' ? 'var(--color-danger)' : 'var(--color-success)', color: 'var(--color-text)' }}>
+                            {message.text}
+                        </div>
+                    )}
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 py-8">
+                        {/* Project Header */}
+                        <div className="flex justify-between items-start mb-6">
+                            <div>
+                                <div className="flex items-center space-x-3 mb-2">
+                                    <h1 className="text-2xl font-bold" style={{ color: 'var(--color-text)' }}>{project.name}</h1>
+                                    <StatusBadge status={project.status} />
+                                </div>
+                                {project.description && (
+                                    <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>{project.description}</p>
+                                )}
+                                <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                                    {project.acquisition_source && <span>Source: {project.acquisition_source}</span>}
+                                    {project.acquisition_date && <span className="ml-4">Date: {project.acquisition_date}</span>}
+                                </div>
+                            </div>
+                            <a href="/projects" className="text-sm px-4 py-2 rounded" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}>
+                                &larr; Back to Projects
+                            </a>
+                        </div>
+
+                        {/* Financial Summary */}
+                        <div className="mb-6">
+                            <h2 className="text-lg font-bold mb-3" style={{ color: 'var(--color-text)' }}>Financial Summary</h2>
+                            <FinancialSummary summary={summary} project={project} />
+                        </div>
+
+                        {/* Parts Section */}
+                        <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>Parts ({parts.length})</h2>
+                                <button
+                                    onClick={() => setShowAddPart(true)}
+                                    className="px-4 py-2 rounded font-medium"
+                                    style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-text)' }}
+                                >
+                                    + Add Part
+                                </button>
+                            </div>
+
+                            {/* Quick Add */}
+                            <div className="mb-4">
+                                <div className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>Quick Add:</div>
+                                <QuickAddButtons onQuickAdd={handleQuickAdd} />
+                            </div>
+
+                            {/* Bulk Actions */}
+                            {selectedParts.length > 0 && (
+                                <div className="mb-4">
+                                    <BulkStatusUpdate
+                                        selectedCount={selectedParts.length}
+                                        onUpdateStatus={handleBulkStatusUpdate}
+                                        onCancel={() => setSelectedParts([])}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Parts Table */}
+                            {parts.length === 0 ? (
+                                <div className="text-center py-8" style={{ color: 'var(--color-text-muted)' }}>
+                                    <p>No parts yet. Add parts to start tracking!</p>
+                                </div>
+                            ) : (
+                                <PartsTable
+                                    parts={parts}
+                                    onEdit={setEditingPart}
+                                    onDelete={setDeletingPart}
+                                    selectedParts={selectedParts}
+                                    onToggleSelect={handleToggleSelect}
+                                    onSelectAll={handleSelectAll}
+                                />
+                            )}
+                        </div>
+                    </main>
+
+                    {/* Add Part Modal */}
+                    <Modal isOpen={showAddPart} onClose={() => { setShowAddPart(false); setQuickAddCategory(null); }} title="Add Part" wide>
+                        <PartForm
+                            projectId={projectId}
+                            catalog={catalog}
+                            onSubmit={handleAddPart}
+                            onCancel={() => { setShowAddPart(false); setQuickAddCategory(null); }}
+                        />
+                    </Modal>
+
+                    {/* Edit Part Modal */}
+                    <Modal isOpen={!!editingPart} onClose={() => setEditingPart(null)} title="Edit Part" wide>
+                        {editingPart && (
+                            <PartForm
+                                part={editingPart}
+                                projectId={projectId}
+                                catalog={catalog}
+                                onSubmit={handleUpdatePart}
+                                onCancel={() => setEditingPart(null)}
+                            />
+                        )}
+                    </Modal>
+
+                    {/* Delete Part Modal */}
+                    <Modal isOpen={!!deletingPart} onClose={() => setDeletingPart(null)} title="Confirm Delete">
+                        {deletingPart && (
+                            <div className="text-center">
+                                <div className="text-5xl mb-4">&#9888;</div>
+                                <p className="mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+                                    Delete <strong>{deletingPart.custom_name || deletingPart.catalog_name || `Part #${deletingPart.part_id}`}</strong>?
+                                </p>
+                                <div className="flex justify-center space-x-3">
+                                    <button onClick={() => setDeletingPart(null)} className="px-4 py-2 rounded border" style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}>Cancel</button>
+                                    <button onClick={handleDeletePart} className="px-4 py-2 rounded font-medium" style={{ backgroundColor: 'var(--color-danger)', color: 'var(--color-text)' }}>Delete</button>
+                                </div>
+                            </div>
+                        )}
+                    </Modal>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<ProjectDetailPage />, document.getElementById('root'));
+    </script>
+</body>
+</html>
