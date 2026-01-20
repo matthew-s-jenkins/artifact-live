@@ -395,12 +395,12 @@ def check_auth():
 # =============================================================================
 
 from routes.projects import projects_bp
-# from routes.parts import parts_bp
+from routes.parts import parts_bp
 # from routes.catalog import catalog_bp
 # from routes.pricing import pricing_bp
 
 app.register_blueprint(projects_bp, url_prefix='/api')
-# app.register_blueprint(parts_bp, url_prefix='/api')
+app.register_blueprint(parts_bp, url_prefix='/api')
 # app.register_blueprint(catalog_bp, url_prefix='/api')
 # app.register_blueprint(pricing_bp, url_prefix='/api')
 
