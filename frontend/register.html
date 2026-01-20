@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Artifact Live</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="themes.js"></script>
+    <style>
+        :root {
+            --color-bg: #111827;
+            --color-bg-secondary: #1f2937;
+            --color-bg-tertiary: #374151;
+            --color-bg-hover: #4b5563;
+            --color-text: #f9fafb;
+            --color-text-secondary: #d1d5db;
+            --color-text-muted: #9ca3af;
+            --color-border: #4b5563;
+            --color-border-light: #374151;
+            --color-primary: #06b6d4;
+            --color-primary-hover: #0891b2;
+            --color-primary-light: #22d3ee;
+            --color-success: #10b981;
+            --color-success-light: #34d399;
+            --color-danger: #ef4444;
+            --color-danger-light: #f87171;
+            --color-warning: #f59e0b;
+            --color-warning-light: #fbbf24;
+        }
+    </style>
+</head>
+<body style="background-color: var(--color-bg); color: var(--color-text);">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+        const API_BASE_URL = '';
+
+        // Theme management
+        const applyTheme = (themeName) => {
+            const theme = THEMES[themeName] || THEMES[DEFAULT_THEME];
+            const root = document.documentElement;
+            Object.entries(theme.colors).forEach(([key, value]) => {
+                const cssVarName = `--color-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+                root.style.setProperty(cssVarName, value);
+            });
+            localStorage.setItem('theme', themeName);
+        };
+
+        const loadSavedTheme = () => {
+            const savedTheme = localStorage.getItem('theme') || DEFAULT_THEME;
+            applyTheme(savedTheme);
+            return savedTheme;
+        };
+
+        loadSavedTheme();
+
+        function RegisterForm() {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [error, setError] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [showPassword, setShowPassword] = useState(false);
+            const [currentTheme, setCurrentTheme] = useState(() => {
+                return localStorage.getItem('theme') || DEFAULT_THEME;
+            });
+
+            const handleThemeChange = (e) => {
+                const newTheme = e.target.value;
+                setCurrentTheme(newTheme);
+                applyTheme(newTheme);
+            };
+
+            const validateForm = () => {
+                if (!email || !email.includes('@')) {
+                    setError('Please enter a valid email address');
+                    return false;
+                }
+                if (password.length < 8) {
+                    setError('Password must be at least 8 characters');
+                    return false;
+                }
+                if (password !== confirmPassword) {
+                    setError('Passwords do not match');
+                    return false;
+                }
+                return true;
+            };
+
+            const handleSubmit = async (event) => {
+                event.preventDefault();
+                setError(null);
+
+                if (!validateForm()) return;
+
+                setLoading(true);
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ email, password }),
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        window.location.href = '/dashboard';
+                    } else {
+                        setError(result.message || 'Registration failed');
+                    }
+                } catch (err) {
+                    setError("Connection error. Is the server running?");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            // Password strength indicator
+            const getPasswordStrength = () => {
+                if (password.length === 0) return { text: '', color: '' };
+                if (password.length < 8) return { text: 'Too short', color: 'var(--color-danger)' };
+                if (password.length < 12) return { text: 'Good', color: 'var(--color-warning)' };
+                return { text: 'Strong', color: 'var(--color-success)' };
+            };
+
+            const strength = getPasswordStrength();
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="p-8 rounded-lg shadow-xl w-full max-w-sm" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h1 className="text-2xl font-bold" style={{color: 'var(--color-text)'}}>Create Account</h1>
+                                <p className="text-sm mt-1" style={{color: 'var(--color-text-muted)'}}>Join Artifact Live</p>
+                            </div>
+                            <select
+                                value={currentTheme}
+                                onChange={handleThemeChange}
+                                style={{
+                                    backgroundColor: 'var(--color-bg-tertiary)',
+                                    color: 'var(--color-text)',
+                                    borderColor: 'var(--color-border)'
+                                }}
+                                className="px-2 py-1 rounded text-xs focus:outline-none focus:ring-2"
+                                title="Change theme"
+                            >
+                                {Object.keys(THEMES).map(themeKey => (
+                                    <option key={themeKey} value={themeKey}>
+                                        {THEMES[themeKey].name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4">
+                                <label className="block mb-2 text-sm" style={{color: 'var(--color-text-secondary)'}}>Email</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full p-2 rounded border"
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-tertiary)',
+                                        color: 'var(--color-text)',
+                                        borderColor: 'var(--color-border)'
+                                    }}
+                                    placeholder="you@example.com"
+                                    required
+                                    disabled={loading}
+                                />
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block mb-2 text-sm" style={{color: 'var(--color-text-secondary)'}}>Password</label>
+                                <div className="relative">
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="w-full p-2 pr-16 rounded border"
+                                        style={{
+                                            backgroundColor: 'var(--color-bg-tertiary)',
+                                            color: 'var(--color-text)',
+                                            borderColor: 'var(--color-border)'
+                                        }}
+                                        placeholder="Min 8 characters"
+                                        required
+                                        disabled={loading}
+                                    />
+                                    <button
+                                        type="button"
+                                        onMouseDown={() => setShowPassword(true)}
+                                        onMouseUp={() => setShowPassword(false)}
+                                        onMouseLeave={() => setShowPassword(false)}
+                                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs px-2 py-1 rounded"
+                                        style={{color: 'var(--color-text-muted)'}}
+                                    >
+                                        (show)
+                                    </button>
+                                </div>
+                                {password && (
+                                    <p className="text-xs mt-1" style={{color: strength.color}}>
+                                        {strength.text}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block mb-2 text-sm" style={{color: 'var(--color-text-secondary)'}}>Confirm Password</label>
+                                <input
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    className="w-full p-2 rounded border"
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-tertiary)',
+                                        color: 'var(--color-text)',
+                                        borderColor: confirmPassword && confirmPassword !== password
+                                            ? 'var(--color-danger)'
+                                            : 'var(--color-border)'
+                                    }}
+                                    placeholder="Re-enter password"
+                                    required
+                                    disabled={loading}
+                                />
+                                {confirmPassword && confirmPassword !== password && (
+                                    <p className="text-xs mt-1" style={{color: 'var(--color-danger)'}}>
+                                        Passwords don't match
+                                    </p>
+                                )}
+                            </div>
+
+                            {error && (
+                                <p className="mb-4 text-center text-sm p-2 rounded" style={{
+                                    color: 'var(--color-danger)',
+                                    backgroundColor: 'var(--color-bg-tertiary)'
+                                }}>
+                                    {error}
+                                </p>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full font-bold py-2 px-4 rounded transition-colors"
+                                style={{
+                                    backgroundColor: loading ? 'var(--color-bg-tertiary)' : 'var(--color-primary)',
+                                    color: 'var(--color-text)',
+                                    cursor: loading ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                {loading ? 'Creating account...' : 'Create Account'}
+                            </button>
+                        </form>
+
+                        <p className="text-center text-sm mt-6" style={{color: 'var(--color-text-muted)'}}>
+                            Already have an account?{' '}
+                            <a href="/login" className="hover:underline" style={{color: 'var(--color-primary)'}}>
+                                Sign in
+                            </a>
+                        </p>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<RegisterForm />, document.getElementById('root'));
+    </script>
+</body>
+</html>

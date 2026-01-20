@@ -47,3 +47,13 @@ fix_db.py
 create_location.py
 update_users_table.sql
 setup_db.py
+
+# Old versions (archived code)
+oldVersions/
+
+# Database files (local development)
+*.db
+backend/database/artifactlive.db
+
+# Virtual environment (backend specific)
+backend/venv/

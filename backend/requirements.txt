@@ -1,0 +1,22 @@
+# Core Flask dependencies
+Flask==3.0.0
+gunicorn==21.2.0
+flask-cors==6.0.1
+Flask-Login==0.6.3
+Werkzeug==3.0.1
+
+# Security
+bcrypt==5.0.0
+
+# Environment management
+python-dotenv==1.0.0
+
+# Utilities
+click==8.2.1
+colorama==0.4.6
+blinker==1.9.0
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+
+# Note: SQLite3 is built into Python, no separate package needed
