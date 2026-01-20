@@ -193,6 +193,13 @@ def serve_project_detail(project_id):
     return send_from_directory('../frontend', 'project-detail.html')
 
 
+@app.route('/settings')
+@login_required
+def serve_settings():
+    """Serve settings page."""
+    return send_from_directory('../frontend', 'settings.html')
+
+
 # =============================================================================
 # HEALTH CHECK API
 # =============================================================================

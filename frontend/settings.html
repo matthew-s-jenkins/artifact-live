@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Artifact Live</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="themes.js"></script>
+    <style>
+        :root {
+            --color-bg: #111827;
+            --color-bg-secondary: #1f2937;
+            --color-bg-tertiary: #374151;
+            --color-bg-hover: #4b5563;
+            --color-text: #f9fafb;
+            --color-text-secondary: #d1d5db;
+            --color-text-muted: #9ca3af;
+            --color-border: #4b5563;
+            --color-border-light: #374151;
+            --color-primary: #06b6d4;
+            --color-primary-hover: #0891b2;
+            --color-primary-light: #22d3ee;
+            --color-success: #10b981;
+            --color-success-light: #34d399;
+            --color-danger: #ef4444;
+            --color-danger-light: #f87171;
+            --color-warning: #f59e0b;
+            --color-warning-light: #fbbf24;
+        }
+    </style>
+</head>
+<body style="background-color: var(--color-bg); color: var(--color-text);">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_BASE_URL = '';
+
+        // Theme management
+        const applyTheme = (themeName) => {
+            const theme = THEMES[themeName] || THEMES[DEFAULT_THEME];
+            const root = document.documentElement;
+            Object.entries(theme.colors).forEach(([key, value]) => {
+                const cssVarName = `--color-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+                root.style.setProperty(cssVarName, value);
+            });
+            localStorage.setItem('theme', themeName);
+        };
+
+        const loadSavedTheme = () => {
+            const savedTheme = localStorage.getItem('theme') || DEFAULT_THEME;
+            applyTheme(savedTheme);
+            return savedTheme;
+        };
+
+        loadSavedTheme();
+
+        // Format currency
+        const formatCurrency = (value) => {
+            if (value === null || value === undefined) return '$0.00';
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+        };
+
+        // Format percentage
+        const formatPercent = (value) => {
+            return (value * 100).toFixed(2) + '%';
+        };
+
+        // Fee Calculator Component
+        function FeeCalculator({ config }) {
+            const [price, setPrice] = useState(100);
+            const [weightClass, setWeightClass] = useState('medium');
+
+            // Calculate fees
+            const finalValueFee = price * (config.ebay_final_value_fee || 0.1315);
+            const paymentProcessingFee = price * (config.ebay_payment_processing || 0.029);
+            const paymentFixedFee = config.ebay_payment_fixed || 0.30;
+            const promotedListingFee = price * (config.ebay_promoted_listing || 0);
+            const totalFees = finalValueFee + paymentProcessingFee + paymentFixedFee + promotedListingFee;
+
+            const shippingEstimates = {
+                light: config.shipping_estimate_light || 8,
+                medium: config.shipping_estimate_medium || 15,
+                heavy: config.shipping_estimate_heavy || 25
+            };
+            const shippingEstimate = shippingEstimates[weightClass];
+
+            const netAfterFees = price - totalFees;
+            const netAfterShipping = netAfterFees - shippingEstimate;
+
+            const inputStyle = {
+                backgroundColor: 'var(--color-bg-tertiary)',
+                color: 'var(--color-text)',
+                borderColor: 'var(--color-border)'
+            };
+
+            return (
+                <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+                    <h3 className="font-bold mb-4" style={{ color: 'var(--color-text)' }}>Fee Calculator</h3>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>Listing Price</label>
+                            <input
+                                type="number"
+                                value={price}
+                                onChange={e => setPrice(parseFloat(e.target.value) || 0)}
+                                step="0.01"
+                                min="0"
+                                className="w-full px-3 py-2 rounded border focus:outline-none"
+                                style={inputStyle}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>Weight Class</label>
+                            <select
+                                value={weightClass}
+                                onChange={e => setWeightClass(e.target.value)}
+                                className="w-full px-3 py-2 rounded border focus:outline-none"
+                                style={inputStyle}
+                            >
+                                <option value="light">Light (&lt;1lb)</option>
+                                <option value="medium">Medium (1-5lb)</option>
+                                <option value="heavy">Heavy (5lb+)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <span style={{ color: 'var(--color-text-muted)' }}>Listing Price:</span>
+                            <span style={{ color: 'var(--color-text)' }}>{formatCurrency(price)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span style={{ color: 'var(--color-text-muted)' }}>eBay Final Value Fee ({formatPercent(config.ebay_final_value_fee || 0.1315)}):</span>
+                            <span style={{ color: 'var(--color-danger)' }}>-{formatCurrency(finalValueFee)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span style={{ color: 'var(--color-text-muted)' }}>Payment Processing ({formatPercent(config.ebay_payment_processing || 0.029)}):</span>
+                            <span style={{ color: 'var(--color-danger)' }}>-{formatCurrency(paymentProcessingFee)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span style={{ color: 'var(--color-text-muted)' }}>Payment Fixed Fee:</span>
+                            <span style={{ color: 'var(--color-danger)' }}>-{formatCurrency(paymentFixedFee)}</span>
+                        </div>
+                        {(config.ebay_promoted_listing || 0) > 0 && (
+                            <div className="flex justify-between">
+                                <span style={{ color: 'var(--color-text-muted)' }}>Promoted Listing ({formatPercent(config.ebay_promoted_listing)}):</span>
+                                <span style={{ color: 'var(--color-danger)' }}>-{formatCurrency(promotedListingFee)}</span>
+                            </div>
+                        )}
+                        <div className="flex justify-between border-t pt-2" style={{ borderColor: 'var(--color-border)' }}>
+                            <span style={{ color: 'var(--color-text-secondary)' }}>Total Fees:</span>
+                            <span style={{ color: 'var(--color-danger)' }}>-{formatCurrency(totalFees)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span style={{ color: 'var(--color-text-secondary)' }}>Net After Fees:</span>
+                            <span style={{ color: 'var(--color-text)' }}>{formatCurrency(netAfterFees)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span style={{ color: 'var(--color-text-muted)' }}>Shipping Estimate ({weightClass}):</span>
+                            <span style={{ color: 'var(--color-danger)' }}>-{formatCurrency(shippingEstimate)}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-2 font-bold" style={{ borderColor: 'var(--color-border)' }}>
+                            <span style={{ color: 'var(--color-text)' }}>Net After Shipping:</span>
+                            <span style={{ color: netAfterShipping >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                                {formatCurrency(netAfterShipping)}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Pricing Config Form Component
+        function PricingConfigForm({ config, configDetails, onSave, onReset }) {
+            const [formData, setFormData] = useState({});
+            const [saving, setSaving] = useState(false);
+            const [hasChanges, setHasChanges] = useState(false);
+
+            useEffect(() => {
+                setFormData(config);
+                setHasChanges(false);
+            }, [config]);
+
+            const handleChange = (key, value) => {
+                const newData = { ...formData, [key]: parseFloat(value) || 0 };
+                setFormData(newData);
+                setHasChanges(true);
+            };
+
+            const handleSave = async () => {
+                setSaving(true);
+                await onSave(formData);
+                setSaving(false);
+                setHasChanges(false);
+            };
+
+            const handleReset = () => {
+                setFormData(config);
+                setHasChanges(false);
+                onReset();
+            };
+
+            const inputStyle = {
+                backgroundColor: 'var(--color-bg-tertiary)',
+                color: 'var(--color-text)',
+                borderColor: 'var(--color-border)'
+            };
+
+            // Group config items
+            const feeConfigs = configDetails.filter(c => c.key.includes('ebay'));
+            const shippingConfigs = configDetails.filter(c => c.key.includes('shipping'));
+
+            return (
+                <div className="space-y-6">
+                    {/* eBay Fee Rates */}
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+                        <h3 className="font-bold mb-4" style={{ color: 'var(--color-text)' }}>eBay Fee Rates</h3>
+                        <div className="space-y-4">
+                            {feeConfigs.map(item => (
+                                <div key={item.key} className="grid grid-cols-3 gap-4 items-center">
+                                    <div>
+                                        <label className="block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                                            {item.description}
+                                        </label>
+                                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{item.key}</span>
+                                    </div>
+                                    <div>
+                                        <input
+                                            type="number"
+                                            value={formData[item.key] || 0}
+                                            onChange={e => handleChange(item.key, e.target.value)}
+                                            step="0.001"
+                                            min="0"
+                                            max="1"
+                                            className="w-full px-3 py-2 rounded border focus:outline-none"
+                                            style={inputStyle}
+                                        />
+                                    </div>
+                                    <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                                        {item.key.includes('fixed')
+                                            ? formatCurrency(formData[item.key] || 0)
+                                            : formatPercent(formData[item.key] || 0)
+                                        }
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Shipping Estimates */}
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+                        <h3 className="font-bold mb-4" style={{ color: 'var(--color-text)' }}>Shipping Estimates</h3>
+                        <div className="space-y-4">
+                            {shippingConfigs.map(item => (
+                                <div key={item.key} className="grid grid-cols-3 gap-4 items-center">
+                                    <div>
+                                        <label className="block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                                            {item.description}
+                                        </label>
+                                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{item.key}</span>
+                                    </div>
+                                    <div>
+                                        <input
+                                            type="number"
+                                            value={formData[item.key] || 0}
+                                            onChange={e => handleChange(item.key, e.target.value)}
+                                            step="0.01"
+                                            min="0"
+                                            className="w-full px-3 py-2 rounded border focus:outline-none"
+                                            style={inputStyle}
+                                        />
+                                    </div>
+                                    <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                                        {formatCurrency(formData[item.key] || 0)}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Save/Reset Buttons */}
+                    <div className="flex justify-end space-x-3">
+                        <button
+                            onClick={handleReset}
+                            disabled={!hasChanges}
+                            className="px-4 py-2 rounded border"
+                            style={{
+                                backgroundColor: 'var(--color-bg-tertiary)',
+                                color: hasChanges ? 'var(--color-text-secondary)' : 'var(--color-text-muted)',
+                                borderColor: 'var(--color-border)',
+                                opacity: hasChanges ? 1 : 0.5
+                            }}
+                        >
+                            Reset Changes
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={!hasChanges || saving}
+                            className="px-4 py-2 rounded font-medium"
+                            style={{
+                                backgroundColor: hasChanges ? 'var(--color-primary)' : 'var(--color-bg-hover)',
+                                color: 'var(--color-text)',
+                                opacity: hasChanges ? 1 : 0.5
+                            }}
+                        >
+                            {saving ? 'Saving...' : 'Save Changes'}
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Main Settings Page Component
+        function SettingsPage() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [config, setConfig] = useState({});
+            const [configDetails, setConfigDetails] = useState([]);
+            const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('theme') || DEFAULT_THEME);
+            const [message, setMessage] = useState(null);
+
+            useEffect(() => {
+                checkAuth();
+            }, []);
+
+            useEffect(() => {
+                if (user) {
+                    loadConfig();
+                }
+            }, [user]);
+
+            const checkAuth = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/check_auth`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.authenticated) {
+                        setUser(data.user);
+                    } else {
+                        window.location.href = '/login';
+                    }
+                } catch (err) {
+                    window.location.href = '/login';
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadConfig = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/pricing-config`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        setConfig(data.config);
+                        setConfigDetails(data.config_details);
+                    }
+                } catch (err) {
+                    console.error('Failed to load config:', err);
+                }
+            };
+
+            const handleThemeChange = (e) => {
+                const newTheme = e.target.value;
+                setCurrentTheme(newTheme);
+                applyTheme(newTheme);
+            };
+
+            const handleLogout = async () => {
+                try {
+                    await fetch(`${API_BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' });
+                    window.location.href = '/login';
+                } catch (err) {
+                    console.error('Logout failed:', err);
+                }
+            };
+
+            const showMsg = (text, type = 'success') => {
+                setMessage({ text, type });
+                setTimeout(() => setMessage(null), 3000);
+            };
+
+            const handleSaveConfig = async (newConfig) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/pricing-config`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(newConfig)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setConfig(data.config);
+                        showMsg('Settings saved successfully!');
+                    } else {
+                        showMsg(data.message || 'Failed to save settings', 'error');
+                    }
+                } catch (err) {
+                    showMsg('Failed to save settings', 'error');
+                }
+            };
+
+            const handleResetConfig = () => {
+                loadConfig();
+            };
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto" style={{ borderColor: 'var(--color-primary)' }}></div>
+                            <p className="mt-4" style={{ color: 'var(--color-text-muted)' }}>Loading...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen">
+                    {/* Navigation */}
+                    <nav className="px-4 py-3 shadow-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                        <div className="max-w-7xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center space-x-6">
+                                <a href="/dashboard" className="text-xl font-bold" style={{ color: 'var(--color-primary)' }}>Artifact Live</a>
+                                <a href="/projects" className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Projects</a>
+                                <a href="/settings" className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>Settings</a>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <select
+                                    value={currentTheme}
+                                    onChange={handleThemeChange}
+                                    style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }}
+                                    className="px-2 py-1 rounded text-xs focus:outline-none"
+                                >
+                                    {Object.keys(THEMES).map(themeKey => (
+                                        <option key={themeKey} value={themeKey}>{THEMES[themeKey].name}</option>
+                                    ))}
+                                </select>
+                                <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>{user?.email}</span>
+                                <button
+                                    onClick={handleLogout}
+                                    className="text-sm px-3 py-1 rounded"
+                                    style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}
+                                >
+                                    Sign Out
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Toast */}
+                    {message && (
+                        <div
+                            className="fixed top-4 right-4 z-50 px-4 py-3 rounded shadow-lg"
+                            style={{ backgroundColor: message.type === 'error' ? 'var(--color-danger)' : 'var(--color-success)', color: 'var(--color-text)' }}
+                        >
+                            {message.text}
+                        </div>
+                    )}
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 py-8">
+                        <h1 className="text-2xl font-bold mb-6" style={{ color: 'var(--color-text)' }}>Settings</h1>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Pricing Config Form */}
+                            <div>
+                                <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--color-text)' }}>Pricing Configuration</h2>
+                                <PricingConfigForm
+                                    config={config}
+                                    configDetails={configDetails}
+                                    onSave={handleSaveConfig}
+                                    onReset={handleResetConfig}
+                                />
+                            </div>
+
+                            {/* Fee Calculator */}
+                            <div>
+                                <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--color-text)' }}>Fee Calculator Preview</h2>
+                                <FeeCalculator config={config} />
+
+                                {/* Info Panel */}
+                                <div className="mt-6 p-4 rounded-lg border" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)' }}>
+                                    <h3 className="font-bold mb-2" style={{ color: 'var(--color-text)' }}>About Fee Calculations</h3>
+                                    <div className="text-sm space-y-2" style={{ color: 'var(--color-text-muted)' }}>
+                                        <p><strong>eBay Final Value Fee:</strong> Charged on the total sale amount including shipping. Default is 13.15% for most categories.</p>
+                                        <p><strong>Payment Processing:</strong> 2.9% + $0.30 per transaction for managed payments.</p>
+                                        <p><strong>Promoted Listing:</strong> Optional fee if using eBay's promoted listings feature. Set to 0 if not using.</p>
+                                        <p><strong>Shipping Estimates:</strong> Used for profit projections before actual shipping costs are known.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Theme Settings */}
+                        <div className="mt-8">
+                            <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--color-text)' }}>Appearance</h2>
+                            <div className="p-4 rounded-lg" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                                    {Object.entries(THEMES).map(([key, theme]) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => { setCurrentTheme(key); applyTheme(key); }}
+                                            className={`p-4 rounded-lg border-2 transition-all ${currentTheme === key ? 'ring-2 ring-offset-2' : ''}`}
+                                            style={{
+                                                backgroundColor: theme.colors.bg,
+                                                borderColor: currentTheme === key ? theme.colors.primary : theme.colors.border,
+                                                ringColor: theme.colors.primary
+                                            }}
+                                        >
+                                            <div className="text-sm font-medium" style={{ color: theme.colors.text }}>{theme.name}</div>
+                                            <div className="flex mt-2 space-x-1">
+                                                <div className="w-4 h-4 rounded" style={{ backgroundColor: theme.colors.primary }}></div>
+                                                <div className="w-4 h-4 rounded" style={{ backgroundColor: theme.colors.success }}></div>
+                                                <div className="w-4 h-4 rounded" style={{ backgroundColor: theme.colors.warning }}></div>
+                                                <div className="w-4 h-4 rounded" style={{ backgroundColor: theme.colors.danger }}></div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<SettingsPage />, document.getElementById('root'));
+    </script>
+</body>
+</html>
