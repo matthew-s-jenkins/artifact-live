@@ -179,6 +179,20 @@ def serve_dashboard():
     return send_from_directory('../frontend', 'dashboard.html')
 
 
+@app.route('/projects')
+@login_required
+def serve_projects():
+    """Serve projects list page."""
+    return send_from_directory('../frontend', 'projects.html')
+
+
+@app.route('/project/<int:project_id>')
+@login_required
+def serve_project_detail(project_id):
+    """Serve project detail page."""
+    return send_from_directory('../frontend', 'project-detail.html')
+
+
 # =============================================================================
 # HEALTH CHECK API
 # =============================================================================

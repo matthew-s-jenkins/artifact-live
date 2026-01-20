@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projects - Artifact Live</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="themes.js"></script>
+    <style>
+        :root {
+            --color-bg: #111827;
+            --color-bg-secondary: #1f2937;
+            --color-bg-tertiary: #374151;
+            --color-bg-hover: #4b5563;
+            --color-text: #f9fafb;
+            --color-text-secondary: #d1d5db;
+            --color-text-muted: #9ca3af;
+            --color-border: #4b5563;
+            --color-border-light: #374151;
+            --color-primary: #06b6d4;
+            --color-primary-hover: #0891b2;
+            --color-primary-light: #22d3ee;
+            --color-success: #10b981;
+            --color-success-light: #34d399;
+            --color-danger: #ef4444;
+            --color-danger-light: #f87171;
+            --color-warning: #f59e0b;
+            --color-warning-light: #fbbf24;
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+    </style>
+</head>
+<body style="background-color: var(--color-bg); color: var(--color-text);">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_BASE_URL = '';
+
+        // Theme management
+        const applyTheme = (themeName) => {
+            const theme = THEMES[themeName] || THEMES[DEFAULT_THEME];
+            const root = document.documentElement;
+            Object.entries(theme.colors).forEach(([key, value]) => {
+                const cssVarName = `--color-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+                root.style.setProperty(cssVarName, value);
+            });
+            localStorage.setItem('theme', themeName);
+        };
+
+        const loadSavedTheme = () => {
+            const savedTheme = localStorage.getItem('theme') || DEFAULT_THEME;
+            applyTheme(savedTheme);
+            return savedTheme;
+        };
+
+        loadSavedTheme();
+
+        // Status badge colors
+        const STATUS_COLORS = {
+            ACQUIRED: { bg: '#3b82f6', text: '#ffffff' },   // Blue
+            PARTING: { bg: '#f59e0b', text: '#000000' },    // Yellow/Amber
+            LISTED: { bg: '#f97316', text: '#ffffff' },     // Orange
+            SOLD: { bg: '#10b981', text: '#ffffff' },       // Green
+            COMPLETE: { bg: '#6b7280', text: '#ffffff' }    // Gray
+        };
+
+        // Format currency
+        const formatCurrency = (value) => {
+            if (value === null || value === undefined) return '$0.00';
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD'
+            }).format(value);
+        };
+
+        // Status Badge Component
+        function StatusBadge({ status }) {
+            const colors = STATUS_COLORS[status] || STATUS_COLORS.ACQUIRED;
+            return (
+                <span
+                    className="text-xs px-2 py-1 rounded font-medium"
+                    style={{ backgroundColor: colors.bg, color: colors.text }}
+                >
+                    {status}
+                </span>
+            );
+        }
+
+        // Modal Component
+        function Modal({ isOpen, onClose, title, children }) {
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay">
+                    <div
+                        className="rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
+                        style={{ backgroundColor: 'var(--color-bg-secondary)' }}
+                    >
+                        <div className="flex justify-between items-center p-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
+                            <h3 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>{title}</h3>
+                            <button
+                                onClick={onClose}
+                                className="text-2xl leading-none hover:opacity-70"
+                                style={{ color: 'var(--color-text-muted)' }}
+                            >
+                                &times;
+                            </button>
+                        </div>
+                        <div className="p-4">
+                            {children}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Project Form Component
+        function ProjectForm({ project, subsections, onSubmit, onCancel }) {
+            const [formData, setFormData] = useState({
+                name: project?.name || '',
+                subsection_id: project?.subsection_id || (subsections[0]?.subsection_id || ''),
+                description: project?.description || '',
+                acquisition_cost: project?.acquisition_cost || '',
+                acquisition_date: project?.acquisition_date || '',
+                acquisition_source: project?.acquisition_source || '',
+                status: project?.status || 'ACQUIRED',
+                notes: project?.notes || ''
+            });
+            const [saving, setSaving] = useState(false);
+
+            const handleChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+                try {
+                    await onSubmit({
+                        ...formData,
+                        subsection_id: parseInt(formData.subsection_id),
+                        acquisition_cost: formData.acquisition_cost ? parseFloat(formData.acquisition_cost) : null
+                    });
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const inputStyle = {
+                backgroundColor: 'var(--color-bg-tertiary)',
+                color: 'var(--color-text)',
+                borderColor: 'var(--color-border)'
+            };
+
+            return (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                            Project Name *
+                        </label>
+                        <input
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleChange}
+                            required
+                            className="w-full px-3 py-2 rounded border focus:outline-none focus:ring-2"
+                            style={inputStyle}
+                            placeholder="e.g., Dell OptiPlex 7050"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                            Subsection *
+                        </label>
+                        <select
+                            name="subsection_id"
+                            value={formData.subsection_id}
+                            onChange={handleChange}
+                            required
+                            className="w-full px-3 py-2 rounded border focus:outline-none focus:ring-2"
+                            style={inputStyle}
+                        >
+                            {subsections.map(sub => (
+                                <option key={sub.subsection_id} value={sub.subsection_id}>
+                                    {sub.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                                Acquisition Cost
+                            </label>
+                            <input
+                                type="number"
+                                name="acquisition_cost"
+                                value={formData.acquisition_cost}
+                                onChange={handleChange}
+                                step="0.01"
+                                min="0"
+                                className="w-full px-3 py-2 rounded border focus:outline-none focus:ring-2"
+                                style={inputStyle}
+                                placeholder="0.00"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                                Acquisition Date
+                            </label>
+                            <input
+                                type="date"
+                                name="acquisition_date"
+                                value={formData.acquisition_date}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 rounded border focus:outline-none focus:ring-2"
+                                style={inputStyle}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                            Acquisition Source
+                        </label>
+                        <input
+                            type="text"
+                            name="acquisition_source"
+                            value={formData.acquisition_source}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 rounded border focus:outline-none focus:ring-2"
+                            style={inputStyle}
+                            placeholder="e.g., eBay, Facebook Marketplace, Estate Sale"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                            Status
+                        </label>
+                        <select
+                            name="status"
+                            value={formData.status}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 rounded border focus:outline-none focus:ring-2"
+                            style={inputStyle}
+                        >
+                            <option value="ACQUIRED">Acquired</option>
+                            <option value="PARTING">Parting Out</option>
+                            <option value="LISTED">Listed</option>
+                            <option value="SOLD">Sold</option>
+                            <option value="COMPLETE">Complete</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                            Description
+                        </label>
+                        <textarea
+                            name="description"
+                            value={formData.description}
+                            onChange={handleChange}
+                            rows="2"
+                            className="w-full px-3 py-2 rounded border focus:outline-none focus:ring-2"
+                            style={inputStyle}
+                            placeholder="Brief description of the project"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-secondary)' }}>
+                            Notes
+                        </label>
+                        <textarea
+                            name="notes"
+                            value={formData.notes}
+                            onChange={handleChange}
+                            rows="2"
+                            className="w-full px-3 py-2 rounded border focus:outline-none focus:ring-2"
+                            style={inputStyle}
+                            placeholder="Any additional notes"
+                        />
+                    </div>
+
+                    <div className="flex justify-end space-x-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="px-4 py-2 rounded border"
+                            style={{
+                                backgroundColor: 'var(--color-bg-tertiary)',
+                                color: 'var(--color-text-secondary)',
+                                borderColor: 'var(--color-border)'
+                            }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="px-4 py-2 rounded font-medium"
+                            style={{
+                                backgroundColor: 'var(--color-primary)',
+                                color: 'var(--color-text)'
+                            }}
+                        >
+                            {saving ? 'Saving...' : (project ? 'Update Project' : 'Create Project')}
+                        </button>
+                    </div>
+                </form>
+            );
+        }
+
+        // Delete Confirmation Modal
+        function DeleteConfirmModal({ project, onConfirm, onCancel }) {
+            const [deleting, setDeleting] = useState(false);
+
+            const handleDelete = async () => {
+                setDeleting(true);
+                await onConfirm();
+                setDeleting(false);
+            };
+
+            return (
+                <div className="text-center">
+                    <div className="text-5xl mb-4">&#9888;</div>
+                    <h4 className="text-lg font-bold mb-2" style={{ color: 'var(--color-danger)' }}>
+                        Delete Project?
+                    </h4>
+                    <p className="mb-2" style={{ color: 'var(--color-text-secondary)' }}>
+                        Are you sure you want to delete <strong>{project.name}</strong>?
+                    </p>
+                    <p className="text-sm mb-6" style={{ color: 'var(--color-text-muted)' }}>
+                        This will also delete all {project.parts_count || 0} parts associated with this project.
+                        This action cannot be undone.
+                    </p>
+                    <div className="flex justify-center space-x-3">
+                        <button
+                            onClick={onCancel}
+                            className="px-4 py-2 rounded border"
+                            style={{
+                                backgroundColor: 'var(--color-bg-tertiary)',
+                                color: 'var(--color-text-secondary)',
+                                borderColor: 'var(--color-border)'
+                            }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleDelete}
+                            disabled={deleting}
+                            className="px-4 py-2 rounded font-medium"
+                            style={{
+                                backgroundColor: 'var(--color-danger)',
+                                color: 'var(--color-text)'
+                            }}
+                        >
+                            {deleting ? 'Deleting...' : 'Delete Project'}
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Project Card Component
+        function ProjectCard({ project, summary, onEdit, onDelete, onClick }) {
+            const profit = summary?.projected_profit || 0;
+            const profitColor = profit >= 0 ? 'var(--color-success)' : 'var(--color-danger)';
+
+            return (
+                <div
+                    className="p-4 rounded-lg border cursor-pointer transition-all hover:shadow-lg"
+                    style={{
+                        backgroundColor: 'var(--color-bg-tertiary)',
+                        borderColor: 'var(--color-border)'
+                    }}
+                    onClick={onClick}
+                >
+                    <div className="flex justify-between items-start mb-3">
+                        <h3 className="font-bold text-lg" style={{ color: 'var(--color-text)' }}>
+                            {project.name}
+                        </h3>
+                        <StatusBadge status={project.status} />
+                    </div>
+
+                    {project.description && (
+                        <p className="text-sm mb-3 line-clamp-2" style={{ color: 'var(--color-text-muted)' }}>
+                            {project.description}
+                        </p>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                        <div>
+                            <span style={{ color: 'var(--color-text-muted)' }}>Cost: </span>
+                            <span style={{ color: 'var(--color-text-secondary)' }}>
+                                {formatCurrency(project.acquisition_cost)}
+                            </span>
+                        </div>
+                        <div>
+                            <span style={{ color: 'var(--color-text-muted)' }}>Parts: </span>
+                            <span style={{ color: 'var(--color-text-secondary)' }}>
+                                {summary?.parts_total || 0}
+                            </span>
+                        </div>
+                        <div>
+                            <span style={{ color: 'var(--color-text-muted)' }}>Est. Value: </span>
+                            <span style={{ color: 'var(--color-text-secondary)' }}>
+                                {formatCurrency(summary?.total_estimated_value)}
+                            </span>
+                        </div>
+                        <div>
+                            <span style={{ color: 'var(--color-text-muted)' }}>Profit: </span>
+                            <span style={{ color: profitColor, fontWeight: 'bold' }}>
+                                {formatCurrency(profit)}
+                            </span>
+                        </div>
+                    </div>
+
+                    {project.acquisition_source && (
+                        <div className="text-xs mb-3" style={{ color: 'var(--color-text-muted)' }}>
+                            Source: {project.acquisition_source}
+                        </div>
+                    )}
+
+                    <div className="flex justify-end space-x-2" onClick={e => e.stopPropagation()}>
+                        <button
+                            onClick={() => onEdit(project)}
+                            className="text-xs px-3 py-1 rounded"
+                            style={{
+                                backgroundColor: 'var(--color-bg-hover)',
+                                color: 'var(--color-text-secondary)'
+                            }}
+                        >
+                            Edit
+                        </button>
+                        <button
+                            onClick={() => onDelete(project)}
+                            className="text-xs px-3 py-1 rounded"
+                            style={{
+                                backgroundColor: 'var(--color-danger)',
+                                color: 'var(--color-text)'
+                            }}
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Main Projects Page Component
+        function ProjectsPage() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [projects, setProjects] = useState([]);
+            const [summaries, setSummaries] = useState({});
+            const [subsections, setSubsections] = useState([]);
+            const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('theme') || DEFAULT_THEME);
+
+            // Filters
+            const [filterSubsection, setFilterSubsection] = useState('all');
+            const [filterStatus, setFilterStatus] = useState('all');
+
+            // Modal states
+            const [showCreateModal, setShowCreateModal] = useState(false);
+            const [editingProject, setEditingProject] = useState(null);
+            const [deletingProject, setDeletingProject] = useState(null);
+
+            // Error/success messages
+            const [message, setMessage] = useState(null);
+
+            useEffect(() => {
+                checkAuth();
+            }, []);
+
+            useEffect(() => {
+                if (user) {
+                    loadSubsections();
+                    loadProjects();
+                }
+            }, [user]);
+
+            const checkAuth = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/check_auth`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.authenticated) {
+                        setUser(data.user);
+                    } else {
+                        window.location.href = '/login';
+                    }
+                } catch (err) {
+                    window.location.href = '/login';
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadSubsections = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/subsections`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        setSubsections(data.subsections);
+                    }
+                } catch (err) {
+                    console.error('Failed to load subsections:', err);
+                }
+            };
+
+            const loadProjects = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        setProjects(data.projects);
+                        // Load summaries for each project
+                        data.projects.forEach(p => loadProjectSummary(p.project_id));
+                    }
+                } catch (err) {
+                    console.error('Failed to load projects:', err);
+                }
+            };
+
+            const loadProjectSummary = async (projectId) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/projects/${projectId}/summary`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        setSummaries(prev => ({ ...prev, [projectId]: data.summary }));
+                    }
+                } catch (err) {
+                    console.error(`Failed to load summary for project ${projectId}:`, err);
+                }
+            };
+
+            const handleThemeChange = (e) => {
+                const newTheme = e.target.value;
+                setCurrentTheme(newTheme);
+                applyTheme(newTheme);
+            };
+
+            const handleLogout = async () => {
+                try {
+                    await fetch(`${API_BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' });
+                    window.location.href = '/login';
+                } catch (err) {
+                    console.error('Logout failed:', err);
+                }
+            };
+
+            const showMessage = (text, type = 'success') => {
+                setMessage({ text, type });
+                setTimeout(() => setMessage(null), 3000);
+            };
+
+            const handleCreateProject = async (formData) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/projects`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(formData)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setShowCreateModal(false);
+                        loadProjects();
+                        showMessage('Project created successfully!');
+                    } else {
+                        showMessage(data.message || 'Failed to create project', 'error');
+                    }
+                } catch (err) {
+                    showMessage('Failed to create project', 'error');
+                }
+            };
+
+            const handleUpdateProject = async (formData) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/projects/${editingProject.project_id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(formData)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setEditingProject(null);
+                        loadProjects();
+                        showMessage('Project updated successfully!');
+                    } else {
+                        showMessage(data.message || 'Failed to update project', 'error');
+                    }
+                } catch (err) {
+                    showMessage('Failed to update project', 'error');
+                }
+            };
+
+            const handleDeleteProject = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/projects/${deletingProject.project_id}`, {
+                        method: 'DELETE',
+                        credentials: 'include'
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setDeletingProject(null);
+                        loadProjects();
+                        showMessage('Project deleted successfully!');
+                    } else {
+                        showMessage(data.message || 'Failed to delete project', 'error');
+                    }
+                } catch (err) {
+                    showMessage('Failed to delete project', 'error');
+                }
+            };
+
+            const handleProjectClick = (project) => {
+                window.location.href = `/project/${project.project_id}`;
+            };
+
+            // Filter projects
+            const filteredProjects = projects.filter(p => {
+                if (filterSubsection !== 'all' && p.subsection_id !== parseInt(filterSubsection)) return false;
+                if (filterStatus !== 'all' && p.status !== filterStatus) return false;
+                return true;
+            });
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto" style={{ borderColor: 'var(--color-primary)' }}></div>
+                            <p className="mt-4" style={{ color: 'var(--color-text-muted)' }}>Loading...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen">
+                    {/* Navigation */}
+                    <nav className="px-4 py-3 shadow-lg" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                        <div className="max-w-7xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center space-x-6">
+                                <a href="/dashboard" className="text-xl font-bold" style={{ color: 'var(--color-primary)' }}>
+                                    Artifact Live
+                                </a>
+                                <a href="/projects" className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
+                                    Projects
+                                </a>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <select
+                                    value={currentTheme}
+                                    onChange={handleThemeChange}
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-tertiary)',
+                                        color: 'var(--color-text)',
+                                        borderColor: 'var(--color-border)'
+                                    }}
+                                    className="px-2 py-1 rounded text-xs focus:outline-none"
+                                >
+                                    {Object.keys(THEMES).map(themeKey => (
+                                        <option key={themeKey} value={themeKey}>
+                                            {THEMES[themeKey].name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                                    {user?.email}
+                                </span>
+                                <button
+                                    onClick={handleLogout}
+                                    className="text-sm px-3 py-1 rounded"
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-tertiary)',
+                                        color: 'var(--color-text-secondary)'
+                                    }}
+                                >
+                                    Sign Out
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Toast Message */}
+                    {message && (
+                        <div
+                            className="fixed top-4 right-4 z-50 px-4 py-3 rounded shadow-lg"
+                            style={{
+                                backgroundColor: message.type === 'error' ? 'var(--color-danger)' : 'var(--color-success)',
+                                color: 'var(--color-text)'
+                            }}
+                        >
+                            {message.text}
+                        </div>
+                    )}
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 py-8">
+                        {/* Header */}
+                        <div className="flex justify-between items-center mb-6">
+                            <h1 className="text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
+                                Projects
+                            </h1>
+                            <button
+                                onClick={() => setShowCreateModal(true)}
+                                className="px-4 py-2 rounded font-medium"
+                                style={{
+                                    backgroundColor: 'var(--color-primary)',
+                                    color: 'var(--color-text)'
+                                }}
+                            >
+                                + New Project
+                            </button>
+                        </div>
+
+                        {/* Filters */}
+                        <div className="flex flex-wrap gap-4 mb-6">
+                            <div>
+                                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                                    Subsection
+                                </label>
+                                <select
+                                    value={filterSubsection}
+                                    onChange={e => setFilterSubsection(e.target.value)}
+                                    className="px-3 py-2 rounded border text-sm"
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-tertiary)',
+                                        color: 'var(--color-text)',
+                                        borderColor: 'var(--color-border)'
+                                    }}
+                                >
+                                    <option value="all">All Subsections</option>
+                                    {subsections.map(sub => (
+                                        <option key={sub.subsection_id} value={sub.subsection_id}>
+                                            {sub.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                                    Status
+                                </label>
+                                <select
+                                    value={filterStatus}
+                                    onChange={e => setFilterStatus(e.target.value)}
+                                    className="px-3 py-2 rounded border text-sm"
+                                    style={{
+                                        backgroundColor: 'var(--color-bg-tertiary)',
+                                        color: 'var(--color-text)',
+                                        borderColor: 'var(--color-border)'
+                                    }}
+                                >
+                                    <option value="all">All Statuses</option>
+                                    <option value="ACQUIRED">Acquired</option>
+                                    <option value="PARTING">Parting</option>
+                                    <option value="LISTED">Listed</option>
+                                    <option value="SOLD">Sold</option>
+                                    <option value="COMPLETE">Complete</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Projects Grid */}
+                        {filteredProjects.length === 0 ? (
+                            <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>
+                                <p className="text-lg mb-2">No projects found</p>
+                                <p className="text-sm">Create your first project to get started!</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {filteredProjects.map(project => (
+                                    <ProjectCard
+                                        key={project.project_id}
+                                        project={project}
+                                        summary={summaries[project.project_id]}
+                                        onEdit={setEditingProject}
+                                        onDelete={(p) => setDeletingProject({ ...p, parts_count: summaries[p.project_id]?.parts_total || 0 })}
+                                        onClick={() => handleProjectClick(project)}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Create Project Modal */}
+                    <Modal
+                        isOpen={showCreateModal}
+                        onClose={() => setShowCreateModal(false)}
+                        title="Create New Project"
+                    >
+                        <ProjectForm
+                            subsections={subsections}
+                            onSubmit={handleCreateProject}
+                            onCancel={() => setShowCreateModal(false)}
+                        />
+                    </Modal>
+
+                    {/* Edit Project Modal */}
+                    <Modal
+                        isOpen={!!editingProject}
+                        onClose={() => setEditingProject(null)}
+                        title="Edit Project"
+                    >
+                        {editingProject && (
+                            <ProjectForm
+                                project={editingProject}
+                                subsections={subsections}
+                                onSubmit={handleUpdateProject}
+                                onCancel={() => setEditingProject(null)}
+                            />
+                        )}
+                    </Modal>
+
+                    {/* Delete Confirmation Modal */}
+                    <Modal
+                        isOpen={!!deletingProject}
+                        onClose={() => setDeletingProject(null)}
+                        title="Confirm Delete"
+                    >
+                        {deletingProject && (
+                            <DeleteConfirmModal
+                                project={deletingProject}
+                                onConfirm={handleDeleteProject}
+                                onCancel={() => setDeletingProject(null)}
+                            />
+                        )}
+                    </Modal>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<ProjectsPage />, document.getElementById('root'));
+    </script>
+</body>
+</html>
