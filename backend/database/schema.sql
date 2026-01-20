@@ -31,17 +31,20 @@ CREATE TABLE IF NOT EXISTS businesses (
 CREATE INDEX IF NOT EXISTS idx_businesses_user_id ON businesses(user_id);
 
 -- =================================================================
--- TABLE 3: subsections - Subsections within a business
+-- TABLE 3: subsections - Subsections within a business or personal inventory
 -- =================================================================
 CREATE TABLE IF NOT EXISTS subsections (
     subsection_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,                    -- Owner of this subsection
     business_id INTEGER,                         -- NULL for personal inventory (keyboards, electronics)
     name TEXT NOT NULL,                          -- 'Computer Chop Shop', 'Keyboards', 'Electronics'
     description TEXT,
     is_business INTEGER DEFAULT 0,               -- 1 = real business operations, 0 = inventory tracking only
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (business_id) REFERENCES businesses(business_id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_subsections_user_id ON subsections(user_id);
 CREATE INDEX IF NOT EXISTS idx_subsections_business_id ON subsections(business_id);
 
 -- =================================================================

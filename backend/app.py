@@ -296,8 +296,8 @@ def register_user_api():
         ]
         for name, desc, is_business in default_subsections:
             cursor.execute(
-                "INSERT INTO subsections (business_id, name, description, is_business) VALUES (NULL, ?, ?, ?)",
-                (name, desc, is_business)
+                "INSERT INTO subsections (user_id, business_id, name, description, is_business) VALUES (?, NULL, ?, ?, ?)",
+                (new_user_id, name, desc, is_business)
             )
 
         conn.commit()
