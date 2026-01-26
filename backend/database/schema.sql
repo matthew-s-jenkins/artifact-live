@@ -59,7 +59,14 @@ CREATE TABLE IF NOT EXISTS projects (
     acquisition_cost REAL,                       -- What you paid for the whole thing
     acquisition_date TEXT,
     acquisition_source TEXT,                     -- 'eBay', 'Facebook Marketplace', 'Estate Sale', etc.
-    status TEXT CHECK(status IN ('ACQUIRED', 'PARTING', 'LISTED', 'SOLD', 'COMPLETE')) DEFAULT 'ACQUIRED',
+    -- Expanded status: CCS workflow + Keyboard workflow
+    status TEXT CHECK(status IN (
+        -- CCS workflow (PC flipping)
+        'ACQUIRED', 'PARTING', 'LISTED', 'SOLD', 'COMPLETE',
+        -- Keyboard workflow
+        'PLANNED', 'IN_PROGRESS', 'ASSEMBLED', 'DEPLOYED', 'DISASSEMBLED'
+    )) DEFAULT 'ACQUIRED',
+    for_sale INTEGER DEFAULT 0,                  -- Is this project/build available for sale?
     notes TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
@@ -68,6 +75,7 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
 CREATE INDEX IF NOT EXISTS idx_projects_subsection_id ON projects(subsection_id);
 CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+CREATE INDEX IF NOT EXISTS idx_projects_for_sale ON projects(for_sale);
 
 -- =================================================================
 -- TABLE 5: parts_catalog - Generic Parts Library
@@ -88,13 +96,15 @@ CREATE INDEX IF NOT EXISTS idx_parts_catalog_subsection_id ON parts_catalog(subs
 CREATE INDEX IF NOT EXISTS idx_parts_catalog_category ON parts_catalog(category);
 
 -- =================================================================
--- TABLE 6: project_parts - Individual Parts Within Projects
+-- TABLE 6: project_parts - Individual Parts (can be loose or in projects)
 -- IMPORTANT: Each physical part gets its own row
 -- set_id groups parts sold together (e.g., RAM kit sold as pair)
+-- project_id is NULLABLE - NULL means "loose inventory" not in any project
 -- =================================================================
 CREATE TABLE IF NOT EXISTS project_parts (
     part_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id INTEGER NOT NULL,
+    project_id INTEGER,                          -- NULL for loose inventory
+    subsection_id INTEGER,                       -- Required when project_id is NULL
     catalog_id INTEGER,                          -- NULL if ad-hoc part not in catalog
     set_id TEXT,                                 -- UUID to group parts sold together
     custom_name TEXT,                            -- Used when catalog_id is NULL
@@ -105,18 +115,25 @@ CREATE TABLE IF NOT EXISTS project_parts (
     actual_sale_price REAL,                      -- What it actually sold for
     shipping_paid REAL,                          -- Actual shipping cost when sold
     fees_paid REAL,                              -- Actual fees when sold
-    status TEXT CHECK(status IN ('IN_SYSTEM', 'LISTED', 'SOLD', 'KEPT', 'TRASHED', 'IN_PROJECT')) DEFAULT 'IN_SYSTEM',
+    status TEXT CHECK(status IN ('IN_SYSTEM', 'LISTED', 'SOLD', 'KEPT', 'TRASHED', 'IN_PROJECT', 'ALLOCATED', 'STAGED')) DEFAULT 'IN_SYSTEM',
     listing_url TEXT,                            -- eBay/marketplace link
     sold_date TEXT,
+    for_sale INTEGER DEFAULT 0,                  -- Is this part available for sale?
+    quantity INTEGER DEFAULT 1,                  -- Quantity for bulk items (switches, keycaps)
+    is_mystery INTEGER DEFAULT 0,                -- Is this an unidentified part?
+    metadata TEXT,                               -- JSON for flexible attributes (hot_swap, lubed, etc.)
     notes TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+    FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE SET NULL,
+    FOREIGN KEY (subsection_id) REFERENCES subsections(subsection_id) ON DELETE CASCADE,
     FOREIGN KEY (catalog_id) REFERENCES parts_catalog(catalog_id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_project_parts_project_id ON project_parts(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_parts_subsection_id ON project_parts(subsection_id);
 CREATE INDEX IF NOT EXISTS idx_project_parts_catalog_id ON project_parts(catalog_id);
 CREATE INDEX IF NOT EXISTS idx_project_parts_set_id ON project_parts(set_id);
 CREATE INDEX IF NOT EXISTS idx_project_parts_status ON project_parts(status);
+CREATE INDEX IF NOT EXISTS idx_project_parts_for_sale ON project_parts(for_sale);
 
 -- =================================================================
 -- TABLE 7: shipping_supplies - Track boxes, tape, bubble wrap, etc.
@@ -278,6 +295,33 @@ LEFT JOIN project_parts pp ON p.project_id = pp.project_id
 GROUP BY p.project_id, p.user_id, p.name, p.acquisition_cost, p.status;
 
 -- =================================================================
+-- VIEW: Loose Inventory (parts without projects)
+-- =================================================================
+CREATE VIEW IF NOT EXISTS v_loose_inventory AS
+SELECT
+    pp.part_id,
+    pp.subsection_id,
+    s.name AS subsection_name,
+    pp.catalog_id,
+    pc.name AS catalog_name,
+    pc.category AS catalog_category,
+    pp.custom_name,
+    COALESCE(pc.name, pp.custom_name) AS display_name,
+    pp.condition,
+    pp.weight_class,
+    pp.estimated_value,
+    pp.for_sale,
+    pp.metadata,
+    pp.status,
+    pp.notes,
+    pp.created_at
+FROM project_parts pp
+LEFT JOIN subsections s ON pp.subsection_id = s.subsection_id
+LEFT JOIN parts_catalog pc ON pp.catalog_id = pc.catalog_id
+WHERE pp.project_id IS NULL;
+
+-- =================================================================
 -- SEED DATA - Initial schema version
 -- =================================================================
 INSERT OR IGNORE INTO schema_version (version, description) VALUES (1, 'Initial Artifact Live v2 schema');
+INSERT OR IGNORE INTO schema_version (version, description) VALUES (2, 'Keyboard support - nullable project_id, for_sale, metadata fields');

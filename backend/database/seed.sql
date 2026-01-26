@@ -63,6 +63,39 @@ PRAGMA foreign_keys = ON;
 -- Cable, Peripheral, Networking, Other
 
 -- =================================================================
+-- Default Parts Catalog Categories (Keyboards)
+-- =================================================================
+
+-- Keyboard category names for the parts catalog:
+-- Switch      - Mechanical switches (Cherry MX, Gateron, etc.)
+-- Keycap      - Keycap sets and individual keycaps
+-- Case        - Keyboard cases/housings
+-- PCB         - Printed circuit boards
+-- Plate       - Mounting plates (aluminum, brass, FR4, etc.)
+-- Stabilizer  - Stabilizers for larger keys
+-- Consumable  - Lube, films, foam, o-rings, etc.
+-- Tool        - Switch pullers, lube stations, etc.
+
+-- Keyboard switch metadata schema (JSON in project_parts.metadata):
+-- {
+--   "switch_type": "linear|tactile|clicky",
+--   "spring_weight": "62g",
+--   "lubed": true|false,
+--   "filmed": true|false,
+--   "spring_swapped": true|false,
+--   "spring_weight_new": "65g"
+-- }
+
+-- Stabilizer metadata schema:
+-- {
+--   "size": "2u|6.25u|7u",
+--   "mount_type": "pcb|plate|screw-in",
+--   "lubed": true|false,
+--   "holee_mod": true|false,
+--   "band_aid_mod": true|false
+-- }
+
+-- =================================================================
 -- Test User (Development Only)
 -- Password: 'testpassword' hashed with bcrypt
 -- =================================================================

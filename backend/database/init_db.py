@@ -33,6 +33,99 @@ def get_seed_path():
     return Path(__file__).parent / "seed.sql"
 
 
+def get_migrations_path():
+    """Return the path to the migrations folder"""
+    return Path(__file__).parent / "migrations"
+
+
+def get_current_schema_version(conn):
+    """Get the current schema version from the database."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT MAX(version) FROM schema_version")
+        result = cursor.fetchone()
+        return result[0] if result and result[0] else 0
+    except sqlite3.Error:
+        return 0
+
+
+def run_migrations():
+    """
+    Run any pending database migrations.
+
+    Looks for migration files in the migrations folder with format:
+    NNN_description.sql (e.g., 002_keyboard_support.sql)
+
+    Migrations are run in order based on the version number prefix.
+    Only migrations with version > current schema version are run.
+
+    Returns True if successful, False otherwise.
+    """
+    db_path = get_db_path()
+    migrations_path = get_migrations_path()
+
+    if not db_path.exists():
+        print("[MIGRATIONS] Database does not exist - skipping migrations")
+        return True
+
+    if not migrations_path.exists():
+        print("[MIGRATIONS] No migrations folder found")
+        return True
+
+    # Get list of migration files
+    migration_files = sorted(migrations_path.glob("*.sql"))
+    if not migration_files:
+        print("[MIGRATIONS] No migration files found")
+        return True
+
+    try:
+        conn = sqlite3.connect(str(db_path))
+        current_version = get_current_schema_version(conn)
+        print(f"[MIGRATIONS] Current schema version: {current_version}")
+
+        migrations_run = 0
+        for migration_file in migration_files:
+            # Parse version from filename (e.g., "002_keyboard_support.sql" -> 2)
+            try:
+                version_str = migration_file.stem.split('_')[0]
+                version = int(version_str)
+            except (ValueError, IndexError):
+                print(f"[MIGRATIONS] Skipping {migration_file.name} - invalid version format")
+                continue
+
+            if version <= current_version:
+                continue
+
+            print(f"[MIGRATIONS] Running migration {version}: {migration_file.name}")
+
+            # Read and execute migration
+            with open(migration_file, 'r') as f:
+                migration_sql = f.read()
+
+            cursor = conn.cursor()
+            cursor.executescript(migration_sql)
+            conn.commit()
+
+            migrations_run += 1
+            print(f"[MIGRATIONS] Migration {version} complete")
+
+        conn.close()
+
+        if migrations_run > 0:
+            print(f"[MIGRATIONS] {migrations_run} migration(s) applied successfully")
+        else:
+            print("[MIGRATIONS] Database is up to date")
+
+        return True
+
+    except sqlite3.Error as err:
+        print(f"[MIGRATIONS] Database error: {err}")
+        return False
+    except Exception as err:
+        print(f"[MIGRATIONS] Unexpected error: {err}")
+        return False
+
+
 def create_database():
     """
     Create the Artifact Live SQLite database with all tables.
@@ -141,7 +234,8 @@ def verify_schema():
 
     expected_views = [
         'v_account_balances',
-        'v_project_summary'
+        'v_project_summary',
+        'v_loose_inventory'
     ]
 
     print("=" * 60)

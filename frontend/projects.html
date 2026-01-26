@@ -134,6 +134,11 @@
                 notes: project?.notes || ''
             });
             const [saving, setSaving] = useState(false);
+            const mountedRef = React.useRef(true);
+
+            useEffect(() => {
+                return () => { mountedRef.current = false; };
+            }, []);
 
             const handleChange = (e) => {
                 const { name, value } = e.target;
@@ -150,7 +155,9 @@
                         acquisition_cost: formData.acquisition_cost ? parseFloat(formData.acquisition_cost) : null
                     });
                 } finally {
-                    setSaving(false);
+                    if (mountedRef.current) {
+                        setSaving(false);
+                    }
                 }
             };
 

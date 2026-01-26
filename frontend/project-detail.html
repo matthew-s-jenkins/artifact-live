@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="themes.js"></script>
+    <script src="/themes.js"></script>
     <style>
         :root {
             --color-bg: #111827;
@@ -226,6 +226,11 @@
             });
             const [useCustom, setUseCustom] = useState(!part?.catalog_id);
             const [saving, setSaving] = useState(false);
+            const mountedRef = React.useRef(true);
+
+            useEffect(() => {
+                return () => { mountedRef.current = false; };
+            }, []);
 
             const handleChange = (e) => {
                 const { name, value } = e.target;
@@ -247,7 +252,9 @@
                     };
                     await onSubmit(submitData);
                 } finally {
-                    setSaving(false);
+                    if (mountedRef.current) {
+                        setSaving(false);
+                    }
                 }
             };
 

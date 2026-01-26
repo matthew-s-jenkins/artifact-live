@@ -83,6 +83,12 @@ def init_database_if_needed():
         print("[APP] Database created successfully")
 
 
+def run_database_migrations():
+    """Run any pending database migrations."""
+    from database.init_db import run_migrations
+    run_migrations()
+
+
 # =============================================================================
 # FLASK APPLICATION SETUP
 # =============================================================================
@@ -104,8 +110,9 @@ CORS(app, supports_credentials=True, origins=[
     'http://127.0.0.1:3000'
 ])
 
-# Initialize database
+# Initialize database and run migrations
 init_database_if_needed()
+run_database_migrations()
 
 
 # =============================================================================
