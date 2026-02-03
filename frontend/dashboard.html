@@ -69,6 +69,12 @@
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [projects, setProjects] = useState([]);
+            const [subsections, setSubsections] = useState([]);
+            const [currentSubsection, setCurrentSubsection] = useState(() => {
+                const saved = localStorage.getItem('currentSubsection');
+                return saved ? parseInt(saved) : null;
+            });
+            const [dashboardData, setDashboardData] = useState(null);
             const [stats, setStats] = useState({ total: 0, active: 0, totalValue: 0, totalProfit: 0 });
             const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('theme') || DEFAULT_THEME);
 
@@ -78,9 +84,16 @@
 
             useEffect(() => {
                 if (user) {
-                    loadProjects();
+                    loadSubsections();
                 }
             }, [user]);
+
+            useEffect(() => {
+                if (user && currentSubsection) {
+                    loadDashboard();
+                    loadProjects();
+                }
+            }, [user, currentSubsection]);
 
             const checkAuth = async () => {
                 try {
@@ -98,15 +111,51 @@
                 }
             };
 
+            const loadSubsections = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/subsections`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success && data.subsections.length > 0) {
+                        setSubsections(data.subsections);
+                        // If no current subsection, select the first one
+                        if (!currentSubsection) {
+                            const firstId = data.subsections[0].subsection_id;
+                            setCurrentSubsection(firstId);
+                            localStorage.setItem('currentSubsection', firstId);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to load subsections:', err);
+                }
+            };
+
+            const loadDashboard = async () => {
+                try {
+                    const url = currentSubsection
+                        ? `${API_BASE_URL}/api/dashboard?subsection_id=${currentSubsection}`
+                        : `${API_BASE_URL}/api/dashboard`;
+                    const res = await fetch(url, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        setDashboardData(data.dashboard);
+                    }
+                } catch (err) {
+                    console.error('Failed to load dashboard:', err);
+                }
+            };
+
             const loadProjects = async () => {
                 try {
-                    const res = await fetch(`${API_BASE_URL}/api/projects`, { credentials: 'include' });
+                    const url = currentSubsection
+                        ? `${API_BASE_URL}/api/projects?subsection_id=${currentSubsection}`
+                        : `${API_BASE_URL}/api/projects`;
+                    const res = await fetch(url, { credentials: 'include' });
                     const data = await res.json();
                     if (data.success) {
                         setProjects(data.projects);
                         // Calculate stats
                         const total = data.projects.length;
-                        const active = data.projects.filter(p => ['ACQUIRED', 'PARTING', 'LISTED'].includes(p.status)).length;
+                        const active = data.projects.filter(p => ['ACQUIRED', 'PARTING', 'LISTED', 'IN_PROGRESS', 'PLANNED'].includes(p.status)).length;
                         const totalValue = data.projects.reduce((sum, p) => sum + (p.total_estimated_value || 0), 0);
                         const totalCost = data.projects.reduce((sum, p) => sum + (p.acquisition_cost || 0), 0);
                         setStats({ total, active, totalValue, totalCost });
@@ -114,6 +163,11 @@
                 } catch (err) {
                     console.error('Failed to load projects:', err);
                 }
+            };
+
+            const switchSubsection = (subsectionId) => {
+                setCurrentSubsection(subsectionId);
+                localStorage.setItem('currentSubsection', subsectionId);
             };
 
             const handleThemeChange = (e) => {
@@ -153,6 +207,7 @@
                             <div className="flex items-center space-x-6">
                                 <h1 className="text-xl font-bold" style={{color: 'var(--color-primary)'}}>Artifact Live</h1>
                                 <a href="/projects" className="text-sm" style={{color: 'var(--color-text-muted)'}}>Projects</a>
+                                <a href="/inventory" className="text-sm" style={{color: 'var(--color-text-muted)'}}>Inventory</a>
                                 <a href="/settings" className="text-sm" style={{color: 'var(--color-text-muted)'}}>Settings</a>
                             </div>
                             <div className="flex items-center space-x-4">
@@ -184,23 +239,40 @@
 
                     {/* Main Content */}
                     <main className="max-w-7xl mx-auto px-4 py-8">
+                        {/* Current Business Header */}
+                        {currentSubsection && subsections.length > 0 && (
+                            <div className="mb-4">
+                                <h2 className="text-2xl font-bold" style={{color: 'var(--color-primary)'}}>
+                                    {subsections.find(s => s.subsection_id === currentSubsection)?.name || 'Dashboard'}
+                                </h2>
+                            </div>
+                        )}
+
                         {/* Stats Grid */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                             <div className="p-4 rounded-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
-                                <div className="text-3xl font-bold" style={{color: 'var(--color-primary)'}}>{stats.total}</div>
+                                <div className="text-3xl font-bold" style={{color: 'var(--color-primary)'}}>
+                                    {dashboardData ? dashboardData.projects.by_status.reduce((sum, s) => sum + s.count, 0) : stats.total}
+                                </div>
                                 <div className="text-sm" style={{color: 'var(--color-text-muted)'}}>Total Projects</div>
                             </div>
                             <div className="p-4 rounded-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
-                                <div className="text-3xl font-bold" style={{color: 'var(--color-warning)'}}>{stats.active}</div>
-                                <div className="text-sm" style={{color: 'var(--color-text-muted)'}}>Active Projects</div>
+                                <div className="text-3xl font-bold" style={{color: 'var(--color-warning)'}}>
+                                    {dashboardData ? dashboardData.projects.in_progress_count : stats.active}
+                                </div>
+                                <div className="text-sm" style={{color: 'var(--color-text-muted)'}}>In Progress</div>
                             </div>
                             <div className="p-4 rounded-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
-                                <div className="text-3xl font-bold" style={{color: 'var(--color-text)'}}>{formatCurrency(stats.totalCost)}</div>
-                                <div className="text-sm" style={{color: 'var(--color-text-muted)'}}>Total Invested</div>
+                                <div className="text-3xl font-bold" style={{color: 'var(--color-success)'}}>
+                                    {dashboardData ? dashboardData.inventory.totals.available : 0}
+                                </div>
+                                <div className="text-sm" style={{color: 'var(--color-text-muted)'}}>Parts Available</div>
                             </div>
                             <div className="p-4 rounded-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
-                                <div className="text-3xl font-bold" style={{color: 'var(--color-success)'}}>{formatCurrency(stats.totalValue)}</div>
-                                <div className="text-sm" style={{color: 'var(--color-text-muted)'}}>Est. Value</div>
+                                <div className="text-3xl font-bold" style={{color: 'var(--color-primary-light)'}}>
+                                    {dashboardData ? dashboardData.projects.for_sale_count : 0}
+                                </div>
+                                <div className="text-sm" style={{color: 'var(--color-text-muted)'}}>For Sale</div>
                             </div>
                         </div>
 
@@ -211,18 +283,25 @@
                                     <h2 className="text-xl font-bold mb-4" style={{color: 'var(--color-text)'}}>Quick Actions</h2>
                                     <div className="flex flex-wrap gap-3">
                                         <a
+                                            href="/inventory"
+                                            className="px-4 py-2 rounded-lg font-medium"
+                                            style={{ backgroundColor: 'var(--color-success)', color: 'var(--color-text)' }}
+                                        >
+                                            + Add Parts
+                                        </a>
+                                        <a
                                             href="/projects"
                                             className="px-4 py-2 rounded-lg font-medium"
                                             style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-text)' }}
                                         >
-                                            View All Projects
+                                            View Projects
                                         </a>
                                         <a
                                             href="/settings"
                                             className="px-4 py-2 rounded-lg font-medium border"
                                             style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-border)' }}
                                         >
-                                            Fee Settings
+                                            Settings
                                         </a>
                                     </div>
 
@@ -263,45 +342,78 @@
                             {/* Subsections */}
                             <div>
                                 <div className="p-6 rounded-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
-                                    <h2 className="text-xl font-bold mb-4" style={{color: 'var(--color-text)'}}>Subsections</h2>
+                                    <h2 className="text-xl font-bold mb-4" style={{color: 'var(--color-text)'}}>Businesses</h2>
                                     <div className="space-y-3">
-                                        <a href="/projects" className="block p-4 rounded-lg border hover:shadow-lg transition-shadow" style={{
-                                            backgroundColor: 'var(--color-bg-tertiary)',
-                                            borderColor: 'var(--color-primary)'
-                                        }}>
-                                            <h3 className="font-bold mb-1" style={{color: 'var(--color-primary)'}}>Computer Chop Shop</h3>
-                                            <p className="text-xs mb-2" style={{color: 'var(--color-text-muted)'}}>PC parting and flipping</p>
-                                            <span className="text-xs px-2 py-1 rounded" style={{
-                                                backgroundColor: 'var(--color-success)',
-                                                color: 'var(--color-text)'
-                                            }}>Active Business</span>
-                                        </a>
-
-                                        <div className="p-4 rounded-lg border opacity-60" style={{
-                                            backgroundColor: 'var(--color-bg-tertiary)',
-                                            borderColor: 'var(--color-border)'
-                                        }}>
-                                            <h3 className="font-bold mb-1" style={{color: 'var(--color-text)'}}>Keyboards</h3>
-                                            <p className="text-xs mb-2" style={{color: 'var(--color-text-muted)'}}>Mechanical keyboard parts</p>
-                                            <span className="text-xs px-2 py-1 rounded" style={{
-                                                backgroundColor: 'var(--color-bg-hover)',
-                                                color: 'var(--color-text-muted)'
-                                            }}>Coming Soon</span>
-                                        </div>
-
-                                        <div className="p-4 rounded-lg border opacity-60" style={{
-                                            backgroundColor: 'var(--color-bg-tertiary)',
-                                            borderColor: 'var(--color-border)'
-                                        }}>
-                                            <h3 className="font-bold mb-1" style={{color: 'var(--color-text)'}}>Electronics</h3>
-                                            <p className="text-xs mb-2" style={{color: 'var(--color-text-muted)'}}>Microcontrollers & components</p>
-                                            <span className="text-xs px-2 py-1 rounded" style={{
-                                                backgroundColor: 'var(--color-bg-hover)',
-                                                color: 'var(--color-text-muted)'
-                                            }}>Coming Soon</span>
-                                        </div>
+                                        {subsections.map(sub => (
+                                            <button
+                                                key={sub.subsection_id}
+                                                onClick={() => switchSubsection(sub.subsection_id)}
+                                                className="block w-full text-left p-4 rounded-lg border hover:shadow-lg transition-shadow"
+                                                style={{
+                                                    backgroundColor: 'var(--color-bg-tertiary)',
+                                                    borderColor: currentSubsection === sub.subsection_id ? 'var(--color-primary)' : 'var(--color-border)',
+                                                    borderWidth: currentSubsection === sub.subsection_id ? '2px' : '1px'
+                                                }}
+                                            >
+                                                <h3 className="font-bold mb-1" style={{
+                                                    color: currentSubsection === sub.subsection_id ? 'var(--color-primary)' : 'var(--color-text)'
+                                                }}>{sub.name}</h3>
+                                                <p className="text-xs mb-2" style={{color: 'var(--color-text-muted)'}}>{sub.description || 'No description'}</p>
+                                                {currentSubsection === sub.subsection_id && (
+                                                    <span className="text-xs px-2 py-1 rounded" style={{
+                                                        backgroundColor: 'var(--color-success)',
+                                                        color: 'var(--color-text)'
+                                                    }}>Active</span>
+                                                )}
+                                            </button>
+                                        ))}
+                                        {subsections.length === 0 && (
+                                            <p className="text-sm" style={{color: 'var(--color-text-muted)'}}>No businesses found. Create one in Settings.</p>
+                                        )}
                                     </div>
                                 </div>
+
+                                {/* Inventory Summary */}
+                                {dashboardData && (
+                                    <div className="p-6 rounded-lg mt-4" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                                        <h2 className="text-xl font-bold mb-4" style={{color: 'var(--color-text)'}}>Inventory</h2>
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between">
+                                                <span style={{color: 'var(--color-text-muted)'}}>Total</span>
+                                                <span style={{color: 'var(--color-text)'}}>{dashboardData.inventory.totals.quantity} items</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span style={{color: 'var(--color-text-muted)'}}>Available</span>
+                                                <span style={{color: 'var(--color-success)'}}>{dashboardData.inventory.totals.available}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span style={{color: 'var(--color-text-muted)'}}>Allocated</span>
+                                                <span style={{color: 'var(--color-warning)'}}>{dashboardData.inventory.totals.allocated}</span>
+                                            </div>
+                                            {dashboardData.inventory.totals.staged > 0 && (
+                                                <div className="flex justify-between">
+                                                    <span style={{color: 'var(--color-text-muted)'}}>Staged</span>
+                                                    <span style={{color: 'var(--color-primary)'}}>{dashboardData.inventory.totals.staged}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* By Category */}
+                                        {dashboardData.inventory.by_category.length > 0 && (
+                                            <div className="mt-4 pt-4 border-t" style={{borderColor: 'var(--color-border)'}}>
+                                                <h3 className="text-sm font-bold mb-2" style={{color: 'var(--color-text-secondary)'}}>By Category</h3>
+                                                <div className="space-y-1">
+                                                    {dashboardData.inventory.by_category.slice(0, 5).map(cat => (
+                                                        <div key={cat.category} className="flex justify-between text-sm">
+                                                            <span style={{color: 'var(--color-text-muted)'}}>{cat.category}</span>
+                                                            <span style={{color: 'var(--color-text)'}}>{cat.total_quantity}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </main>

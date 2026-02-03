@@ -421,9 +421,20 @@
             );
         }
 
-        // Quick Add Buttons
-        function QuickAddButtons({ onQuickAdd }) {
-            const commonParts = [
+        // Quick Add Buttons - dynamic based on business type
+        function QuickAddButtons({ onQuickAdd, subsectionName }) {
+            const isKeyboard = subsectionName?.toLowerCase().includes('keyboard');
+
+            const keyboardParts = [
+                { category: 'Switch', name: 'Switches' },
+                { category: 'Keycap', name: 'Keycaps' },
+                { category: 'PCB', name: 'PCB' },
+                { category: 'Case', name: 'Case' },
+                { category: 'Plate', name: 'Plate' },
+                { category: 'Stabilizer', name: 'Stabs' }
+            ];
+
+            const ccsParts = [
                 { category: 'CPU', name: 'CPU' },
                 { category: 'GPU', name: 'GPU' },
                 { category: 'RAM', name: 'RAM' },
@@ -433,6 +444,8 @@
                 { category: 'Case', name: 'Case' },
                 { category: 'Cooling', name: 'Cooler' }
             ];
+
+            const commonParts = isKeyboard ? keyboardParts : ccsParts;
 
             return (
                 <div className="flex flex-wrap gap-2">
@@ -446,6 +459,91 @@
                             + {part.name}
                         </button>
                     ))}
+                </div>
+            );
+        }
+
+        // Allocate from Inventory Form
+        function AllocateFromInventoryForm({ inventory, onAllocate, onClose }) {
+            const [quantities, setQuantities] = useState(() => {
+                const initial = {};
+                inventory.forEach(p => {
+                    // Default to full quantity for single items, or a sensible default for bulk
+                    initial[p.part_id] = p.quantity > 100 ? 70 : p.quantity;
+                });
+                return initial;
+            });
+
+            const handleQuantityChange = (partId, value, maxQty) => {
+                const qty = Math.min(Math.max(1, parseInt(value) || 1), maxQty);
+                setQuantities(prev => ({ ...prev, [partId]: qty }));
+            };
+
+            if (inventory.length === 0) {
+                return (
+                    <div>
+                        <p className="text-center py-4" style={{ color: 'var(--color-text-muted)' }}>
+                            No available parts in inventory. Add parts via the Inventory page first.
+                        </p>
+                        <button
+                            onClick={onClose}
+                            className="w-full px-4 py-2 rounded mt-4"
+                            style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}
+                        >
+                            Close
+                        </button>
+                    </div>
+                );
+            }
+
+            return (
+                <div>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {inventory.map(part => (
+                            <div
+                                key={part.part_id}
+                                className="flex items-center justify-between p-3 rounded"
+                                style={{ backgroundColor: 'var(--color-bg-tertiary)' }}
+                            >
+                                <div className="flex-1">
+                                    <div className="font-medium" style={{ color: 'var(--color-text)' }}>
+                                        {part.catalog_name || part.custom_name || `Part #${part.part_id}`}
+                                    </div>
+                                    <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                                        {part.catalog_category && <span className="mr-2">{part.catalog_category}</span>}
+                                        Available: {part.quantity} | {part.condition}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max={part.quantity}
+                                        value={quantities[part.part_id] || 1}
+                                        onChange={(e) => handleQuantityChange(part.part_id, e.target.value, part.quantity)}
+                                        className="w-20 px-2 py-1 rounded text-center text-sm"
+                                        style={{ backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }}
+                                    />
+                                    <button
+                                        onClick={() => onAllocate(part.part_id, quantities[part.part_id] || 1)}
+                                        className="px-3 py-1 rounded text-sm font-medium"
+                                        style={{ backgroundColor: 'var(--color-success)', color: 'var(--color-text)' }}
+                                    >
+                                        Allocate
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                        <button
+                            onClick={onClose}
+                            className="w-full px-4 py-2 rounded"
+                            style={{ backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)' }}
+                        >
+                            Close
+                        </button>
+                    </div>
                 </div>
             );
         }
@@ -590,10 +688,12 @@
             const [summary, setSummary] = useState(null);
             const [parts, setParts] = useState([]);
             const [catalog, setCatalog] = useState([]);
+            const [inventory, setInventory] = useState([]);
             const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('theme') || DEFAULT_THEME);
 
             // Modal states
             const [showAddPart, setShowAddPart] = useState(false);
+            const [showAllocateInventory, setShowAllocateInventory] = useState(false);
             const [editingPart, setEditingPart] = useState(null);
             const [deletingPart, setDeletingPart] = useState(null);
             const [quickAddCategory, setQuickAddCategory] = useState(null);
@@ -617,6 +717,13 @@
                     loadCatalog();
                 }
             }, [user, projectId]);
+
+            // Load inventory when project's subsection is known
+            useEffect(() => {
+                if (project?.subsection_id) {
+                    loadInventory(project.subsection_id);
+                }
+            }, [project?.subsection_id]);
 
             const checkAuth = async () => {
                 try {
@@ -668,6 +775,42 @@
                     }
                 } catch (err) {
                     console.error('Failed to load catalog:', err);
+                }
+            };
+
+            const loadInventory = async (subsectionId) => {
+                if (!subsectionId) return;
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/inventory?subsection_id=${subsectionId}`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        // Only show available parts (IN_SYSTEM status, not already allocated)
+                        const available = data.parts.filter(p => p.status === 'IN_SYSTEM');
+                        setInventory(available);
+                    }
+                } catch (err) {
+                    console.error('Failed to load inventory:', err);
+                }
+            };
+
+            const handleAllocateFromInventory = async (partId, quantity) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/parts/${partId}/allocate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ project_id: projectId, quantity })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        showMsg(data.message || 'Part allocated!');
+                        loadParts();
+                        loadInventory(project?.subsection_id);
+                    } else {
+                        showMsg(data.message || 'Failed to allocate', 'error');
+                    }
+                } catch (err) {
+                    showMsg('Failed to allocate part', 'error');
                 }
             };
 
@@ -822,6 +965,7 @@
                             <div className="flex items-center space-x-6">
                                 <a href="/dashboard" className="text-xl font-bold" style={{ color: 'var(--color-primary)' }}>Artifact Live</a>
                                 <a href="/projects" className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Projects</a>
+                                <a href="/inventory" className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Inventory</a>
                                 <a href="/settings" className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Settings</a>
                                 <span style={{ color: 'var(--color-text-muted)' }}>|</span>
                                 <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>{project.name}</span>
@@ -877,19 +1021,31 @@
                         <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
                             <div className="flex justify-between items-center mb-4">
                                 <h2 className="text-lg font-bold" style={{ color: 'var(--color-text)' }}>Parts ({parts.length})</h2>
-                                <button
-                                    onClick={() => setShowAddPart(true)}
-                                    className="px-4 py-2 rounded font-medium"
-                                    style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-text)' }}
-                                >
-                                    + Add Part
-                                </button>
+                                <div className="flex gap-2">
+                                    {/* Show Allocate button for keyboard projects (inventory-based workflow) */}
+                                    {project?.subsection_name?.toLowerCase().includes('keyboard') && (
+                                        <button
+                                            onClick={() => setShowAllocateInventory(true)}
+                                            className="px-4 py-2 rounded font-medium"
+                                            style={{ backgroundColor: inventory.length > 0 ? 'var(--color-success)' : 'var(--color-bg-tertiary)', color: 'var(--color-text)' }}
+                                        >
+                                            Allocate from Inventory {inventory.length > 0 ? `(${inventory.length})` : ''}
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setShowAddPart(true)}
+                                        className="px-4 py-2 rounded font-medium"
+                                        style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-text)' }}
+                                    >
+                                        + Add Part
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Quick Add */}
                             <div className="mb-4">
                                 <div className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>Quick Add:</div>
-                                <QuickAddButtons onQuickAdd={handleQuickAdd} />
+                                <QuickAddButtons onQuickAdd={handleQuickAdd} subsectionName={project?.subsection_name} />
                             </div>
 
                             {/* Bulk Actions */}
@@ -958,6 +1114,18 @@
                                 </div>
                             </div>
                         )}
+                    </Modal>
+
+                    {/* Allocate from Inventory Modal */}
+                    <Modal isOpen={showAllocateInventory} onClose={() => setShowAllocateInventory(false)} title="Allocate from Inventory" wide>
+                        <AllocateFromInventoryForm
+                            inventory={inventory}
+                            onAllocate={(partId, qty) => {
+                                handleAllocateFromInventory(partId, qty);
+                                setShowAllocateInventory(false);
+                            }}
+                            onClose={() => setShowAllocateInventory(false)}
+                        />
                     </Modal>
                 </div>
             );

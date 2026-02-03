@@ -64,11 +64,18 @@
 
         // Status badge colors
         const STATUS_COLORS = {
+            // Computer Chop Shop statuses
             ACQUIRED: { bg: '#3b82f6', text: '#ffffff' },   // Blue
             PARTING: { bg: '#f59e0b', text: '#000000' },    // Yellow/Amber
             LISTED: { bg: '#f97316', text: '#ffffff' },     // Orange
             SOLD: { bg: '#10b981', text: '#ffffff' },       // Green
-            COMPLETE: { bg: '#6b7280', text: '#ffffff' }    // Gray
+            COMPLETE: { bg: '#6b7280', text: '#ffffff' },   // Gray
+            // Keyboard statuses
+            PLANNED: { bg: '#8b5cf6', text: '#ffffff' },    // Purple
+            IN_PROGRESS: { bg: '#f59e0b', text: '#000000' },// Yellow/Amber
+            ASSEMBLED: { bg: '#06b6d4', text: '#ffffff' },  // Cyan
+            DEPLOYED: { bg: '#10b981', text: '#ffffff' },   // Green
+            DISASSEMBLED: { bg: '#6b7280', text: '#ffffff' }// Gray
         };
 
         // Format currency
@@ -122,17 +129,45 @@
         }
 
         // Project Form Component
-        function ProjectForm({ project, subsections, onSubmit, onCancel }) {
+        function ProjectForm({ project, subsections, defaultSubsectionId, onSubmit, onCancel }) {
+            const getInitialSubsectionId = () => {
+                if (project?.subsection_id) return project.subsection_id;
+                if (defaultSubsectionId) return defaultSubsectionId;
+                return subsections[0]?.subsection_id || '';
+            };
+
+            const isKeyboardSubsection = (subId) => {
+                const sub = subsections.find(s => s.subsection_id === parseInt(subId));
+                return sub?.name?.toLowerCase().includes('keyboard');
+            };
+
+            const getDefaultStatus = (subId) => {
+                return isKeyboardSubsection(subId) ? 'PLANNED' : 'ACQUIRED';
+            };
+
+            const initialSubId = getInitialSubsectionId();
             const [formData, setFormData] = useState({
                 name: project?.name || '',
-                subsection_id: project?.subsection_id || (subsections[0]?.subsection_id || ''),
+                subsection_id: initialSubId,
                 description: project?.description || '',
                 acquisition_cost: project?.acquisition_cost || '',
                 acquisition_date: project?.acquisition_date || '',
                 acquisition_source: project?.acquisition_source || '',
-                status: project?.status || 'ACQUIRED',
+                status: project?.status || getDefaultStatus(initialSubId),
                 notes: project?.notes || ''
             });
+
+            // Dynamic placeholder based on selected subsection
+            const getPlaceholder = () => {
+                if (isKeyboardSubsection(formData.subsection_id)) {
+                    return 'e.g., Tofu65 Build, Mode Sonnet';
+                }
+                const sub = subsections.find(s => s.subsection_id === parseInt(formData.subsection_id));
+                if (sub?.name?.toLowerCase().includes('computer') || sub?.name?.toLowerCase().includes('chop')) {
+                    return 'e.g., Dell OptiPlex 7050';
+                }
+                return 'e.g., Project Name';
+            };
             const [saving, setSaving] = useState(false);
             const mountedRef = React.useRef(true);
 
@@ -142,7 +177,16 @@
 
             const handleChange = (e) => {
                 const { name, value } = e.target;
-                setFormData(prev => ({ ...prev, [name]: value }));
+                // When subsection changes on a new project, update the default status
+                if (name === 'subsection_id' && !project) {
+                    setFormData(prev => ({
+                        ...prev,
+                        [name]: value,
+                        status: getDefaultStatus(value)
+                    }));
+                } else {
+                    setFormData(prev => ({ ...prev, [name]: value }));
+                }
             };
 
             const handleSubmit = async (e) => {
@@ -181,7 +225,7 @@
                             required
                             className="w-full px-3 py-2 rounded border focus:outline-none focus:ring-2"
                             style={inputStyle}
-                            placeholder="e.g., Dell OptiPlex 7050"
+                            placeholder={getPlaceholder()}
                         />
                     </div>
 
@@ -263,11 +307,23 @@
                             className="w-full px-3 py-2 rounded border focus:outline-none focus:ring-2"
                             style={inputStyle}
                         >
-                            <option value="ACQUIRED">Acquired</option>
-                            <option value="PARTING">Parting Out</option>
-                            <option value="LISTED">Listed</option>
-                            <option value="SOLD">Sold</option>
-                            <option value="COMPLETE">Complete</option>
+                            {isKeyboardSubsection(formData.subsection_id) ? (
+                                <>
+                                    <option value="PLANNED">Planned</option>
+                                    <option value="IN_PROGRESS">In Progress</option>
+                                    <option value="ASSEMBLED">Assembled</option>
+                                    <option value="DEPLOYED">Deployed</option>
+                                    <option value="DISASSEMBLED">Disassembled</option>
+                                </>
+                            ) : (
+                                <>
+                                    <option value="ACQUIRED">Acquired</option>
+                                    <option value="PARTING">Parting Out</option>
+                                    <option value="LISTED">Listed</option>
+                                    <option value="SOLD">Sold</option>
+                                    <option value="COMPLETE">Complete</option>
+                                </>
+                            )}
                         </select>
                     </div>
 
@@ -476,8 +532,11 @@
             const [subsections, setSubsections] = useState([]);
             const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('theme') || DEFAULT_THEME);
 
-            // Filters
-            const [filterSubsection, setFilterSubsection] = useState('all');
+            // Filters - read current subsection from localStorage (set by dashboard)
+            const [filterSubsection, setFilterSubsection] = useState(() => {
+                const saved = localStorage.getItem('currentSubsection');
+                return saved ? parseInt(saved) : 'all';
+            });
             const [filterStatus, setFilterStatus] = useState('all');
 
             // Modal states
@@ -640,7 +699,7 @@
 
             // Filter projects
             const filteredProjects = projects.filter(p => {
-                if (filterSubsection !== 'all' && p.subsection_id !== parseInt(filterSubsection)) return false;
+                if (filterSubsection !== 'all' && p.subsection_id !== filterSubsection) return false;
                 if (filterStatus !== 'all' && p.status !== filterStatus) return false;
                 return true;
             });
@@ -667,6 +726,9 @@
                                 </a>
                                 <a href="/projects" className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
                                     Projects
+                                </a>
+                                <a href="/inventory" className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                                    Inventory
                                 </a>
                                 <a href="/settings" className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
                                     Settings
@@ -746,7 +808,16 @@
                                 </label>
                                 <select
                                     value={filterSubsection}
-                                    onChange={e => setFilterSubsection(e.target.value)}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        if (val === 'all') {
+                                            setFilterSubsection('all');
+                                        } else {
+                                            const intVal = parseInt(val);
+                                            setFilterSubsection(intVal);
+                                            localStorage.setItem('currentSubsection', intVal);
+                                        }
+                                    }}
                                     className="px-3 py-2 rounded border text-sm"
                                     style={{
                                         backgroundColor: 'var(--color-bg-tertiary)',
@@ -816,6 +887,7 @@
                     >
                         <ProjectForm
                             subsections={subsections}
+                            defaultSubsectionId={filterSubsection !== 'all' ? filterSubsection : null}
                             onSubmit={handleCreateProject}
                             onCancel={() => setShowCreateModal(false)}
                         />

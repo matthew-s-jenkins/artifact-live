@@ -14,6 +14,7 @@ Endpoints:
     POST   /api/projects/<id>/plan-build    - Plan a build (analyze part availability)
     POST   /api/projects/<id>/confirm-staged - Confirm staged parts (STAGED -> ALLOCATED)
     POST   /api/projects/<id>/cancel-staged  - Cancel staged parts (return to inventory)
+    GET    /api/dashboard                   - At-a-glance inventory and project stats
 
 Author: Matthew Jenkins
 Date: 2026-01-19
@@ -1015,6 +1016,196 @@ def cancel_staged_parts(project_id):
     except Exception as e:
         print(f"[PROJECTS] Cancel staged error: {e}")
         return jsonify(success=False, message="Failed to cancel staged parts."), 500
+
+
+@projects_bp.route('/dashboard', methods=['GET'])
+@login_required
+def get_dashboard():
+    """
+    Dashboard - at-a-glance view of inventory and project status.
+
+    Query params:
+        subsection_id: int (optional) - Filter to specific subsection
+
+    Returns:
+        success: bool
+        dashboard: {
+            inventory: {
+                by_category: [{category, total_parts, total_quantity, available_quantity, allocated_quantity}],
+                totals: {parts, quantity, available, allocated, staged, mystery}
+            },
+            projects: {
+                by_status: [{status, count}],
+                recent: [{project_id, name, status, for_sale, part_count, created_at}],
+                for_sale_count: int,
+                personal_count: int,
+                in_progress_count: int
+            }
+        }
+    """
+    subsection_id = request.args.get('subsection_id', type=int)
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Get user's subsections
+        cursor.execute(
+            "SELECT subsection_id FROM subsections WHERE user_id = ?",
+            (current_user.id,)
+        )
+        user_subsections = [row['subsection_id'] for row in cursor.fetchall()]
+
+        if not user_subsections:
+            conn.close()
+            return jsonify(success=True, dashboard={
+                'inventory': {
+                    'by_category': [],
+                    'totals': {'parts': 0, 'quantity': 0, 'available': 0, 'allocated': 0, 'staged': 0, 'mystery': 0}
+                },
+                'projects': {
+                    'by_status': [],
+                    'recent': [],
+                    'for_sale_count': 0,
+                    'personal_count': 0,
+                    'in_progress_count': 0
+                }
+            })
+
+        # Build subsection filter
+        if subsection_id and subsection_id in user_subsections:
+            subsection_filter = [subsection_id]
+        else:
+            subsection_filter = user_subsections
+
+        placeholders = ','.join('?' * len(subsection_filter))
+
+        # ===== INVENTORY STATS =====
+
+        # Parts by category
+        cursor.execute(f"""
+            SELECT
+                COALESCE(pc.category, 'Uncategorized') as category,
+                COUNT(pp.part_id) as total_parts,
+                COALESCE(SUM(pp.quantity), 0) as total_quantity,
+                COALESCE(SUM(CASE WHEN pp.project_id IS NULL AND pp.status = 'IN_SYSTEM' THEN pp.quantity ELSE 0 END), 0) as available_quantity,
+                COALESCE(SUM(CASE WHEN pp.project_id IS NOT NULL THEN pp.quantity ELSE 0 END), 0) as allocated_quantity
+            FROM project_parts pp
+            LEFT JOIN parts_catalog pc ON pp.catalog_id = pc.catalog_id
+            WHERE pp.subsection_id IN ({placeholders})
+              AND pp.status NOT IN ('SOLD', 'TRASHED')
+            GROUP BY COALESCE(pc.category, 'Uncategorized')
+            ORDER BY total_quantity DESC
+        """, subsection_filter)
+
+        by_category = []
+        for row in cursor.fetchall():
+            by_category.append({
+                'category': row['category'],
+                'total_parts': row['total_parts'],
+                'total_quantity': row['total_quantity'],
+                'available_quantity': row['available_quantity'],
+                'allocated_quantity': row['allocated_quantity']
+            })
+
+        # Inventory totals
+        cursor.execute(f"""
+            SELECT
+                COUNT(pp.part_id) as total_parts,
+                COALESCE(SUM(pp.quantity), 0) as total_quantity,
+                COALESCE(SUM(CASE WHEN pp.project_id IS NULL AND pp.status = 'IN_SYSTEM' THEN pp.quantity ELSE 0 END), 0) as available,
+                COALESCE(SUM(CASE WHEN pp.project_id IS NOT NULL AND pp.status NOT IN ('STAGED') THEN pp.quantity ELSE 0 END), 0) as allocated,
+                COALESCE(SUM(CASE WHEN pp.status = 'STAGED' THEN pp.quantity ELSE 0 END), 0) as staged,
+                SUM(CASE WHEN pp.is_mystery = 1 THEN 1 ELSE 0 END) as mystery
+            FROM project_parts pp
+            WHERE pp.subsection_id IN ({placeholders})
+              AND pp.status NOT IN ('SOLD', 'TRASHED')
+        """, subsection_filter)
+
+        totals_row = cursor.fetchone()
+        inventory_totals = {
+            'parts': totals_row['total_parts'] or 0,
+            'quantity': totals_row['total_quantity'] or 0,
+            'available': totals_row['available'] or 0,
+            'allocated': totals_row['allocated'] or 0,
+            'staged': totals_row['staged'] or 0,
+            'mystery': totals_row['mystery'] or 0
+        }
+
+        # ===== PROJECT STATS =====
+
+        # Projects by status
+        cursor.execute(f"""
+            SELECT status, COUNT(*) as count
+            FROM projects
+            WHERE user_id = ? AND subsection_id IN ({placeholders})
+            GROUP BY status
+            ORDER BY count DESC
+        """, [current_user.id] + subsection_filter)
+
+        by_status = []
+        for row in cursor.fetchall():
+            by_status.append({
+                'status': row['status'],
+                'count': row['count']
+            })
+
+        # Recent projects with part counts
+        cursor.execute(f"""
+            SELECT p.project_id, p.name, p.status, p.for_sale, p.created_at,
+                   COUNT(pp.part_id) as part_count,
+                   COALESCE(SUM(pp.quantity), 0) as total_quantity
+            FROM projects p
+            LEFT JOIN project_parts pp ON p.project_id = pp.project_id
+            WHERE p.user_id = ? AND p.subsection_id IN ({placeholders})
+            GROUP BY p.project_id
+            ORDER BY p.created_at DESC
+            LIMIT 10
+        """, [current_user.id] + subsection_filter)
+
+        recent_projects = []
+        for row in cursor.fetchall():
+            recent_projects.append({
+                'project_id': row['project_id'],
+                'name': row['name'],
+                'status': row['status'],
+                'for_sale': bool(row['for_sale']),
+                'part_count': row['part_count'],
+                'total_quantity': row['total_quantity'],
+                'created_at': row['created_at']
+            })
+
+        # Quick filter counts
+        cursor.execute(f"""
+            SELECT
+                SUM(CASE WHEN for_sale = 1 THEN 1 ELSE 0 END) as for_sale_count,
+                SUM(CASE WHEN for_sale = 0 THEN 1 ELSE 0 END) as personal_count,
+                SUM(CASE WHEN status = 'IN_PROGRESS' THEN 1 ELSE 0 END) as in_progress_count
+            FROM projects
+            WHERE user_id = ? AND subsection_id IN ({placeholders})
+        """, [current_user.id] + subsection_filter)
+
+        counts_row = cursor.fetchone()
+
+        conn.close()
+
+        return jsonify(success=True, dashboard={
+            'inventory': {
+                'by_category': by_category,
+                'totals': inventory_totals
+            },
+            'projects': {
+                'by_status': by_status,
+                'recent': recent_projects,
+                'for_sale_count': counts_row['for_sale_count'] or 0,
+                'personal_count': counts_row['personal_count'] or 0,
+                'in_progress_count': counts_row['in_progress_count'] or 0
+            }
+        })
+
+    except Exception as e:
+        print(f"[DASHBOARD] Error: {e}")
+        return jsonify(success=False, message="Failed to load dashboard."), 500
 
 
 @projects_bp.route('/subsections', methods=['GET'])

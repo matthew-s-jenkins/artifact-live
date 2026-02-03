@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory - Artifact Live</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="themes.js"></script>
+    <style>
+        :root {
+            --color-bg: #111827;
+            --color-bg-secondary: #1f2937;
+            --color-bg-tertiary: #374151;
+            --color-bg-hover: #4b5563;
+            --color-text: #f9fafb;
+            --color-text-secondary: #d1d5db;
+            --color-text-muted: #9ca3af;
+            --color-border: #4b5563;
+            --color-border-light: #374151;
+            --color-primary: #06b6d4;
+            --color-primary-hover: #0891b2;
+            --color-primary-light: #22d3ee;
+            --color-success: #10b981;
+            --color-success-light: #34d399;
+            --color-danger: #ef4444;
+            --color-danger-light: #f87171;
+            --color-warning: #f59e0b;
+            --color-warning-light: #fbbf24;
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+    </style>
+</head>
+<body style="background-color: var(--color-bg); color: var(--color-text);">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_BASE_URL = '';
+
+        // Theme management
+        const applyTheme = (themeName) => {
+            const theme = THEMES[themeName] || THEMES[DEFAULT_THEME];
+            const root = document.documentElement;
+            Object.entries(theme.colors).forEach(([key, value]) => {
+                const cssVarName = `--color-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+                root.style.setProperty(cssVarName, value);
+            });
+            localStorage.setItem('theme', themeName);
+        };
+
+        const loadSavedTheme = () => {
+            const savedTheme = localStorage.getItem('theme') || DEFAULT_THEME;
+            applyTheme(savedTheme);
+            return savedTheme;
+        };
+
+        loadSavedTheme();
+
+        // Modal Component
+        function Modal({ isOpen, onClose, title, children }) {
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay">
+                    <div className="rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold" style={{color: 'var(--color-text)'}}>{title}</h2>
+                            <button onClick={onClose} className="text-2xl" style={{color: 'var(--color-text-muted)'}}>&times;</button>
+                        </div>
+                        {children}
+                    </div>
+                </div>
+            );
+        }
+
+        // Keyboard categories for catalog entries
+        const KEYBOARD_CATEGORIES = [
+            'Switch', 'Keycap', 'Case', 'PCB', 'Plate',
+            'Stabilizer', 'Consumable', 'Tool', 'Cable', 'Other'
+        ];
+
+        // Add Catalog Entry Modal
+        function AddCatalogModal({ isOpen, onClose, subsectionId, onCreated }) {
+            const [formData, setFormData] = useState({
+                name: '',
+                category: 'Switch',
+                notes: ''
+            });
+            const [saving, setSaving] = useState(false);
+            const [error, setError] = useState(null);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                if (!formData.name.trim()) {
+                    setError('Name is required');
+                    return;
+                }
+                setSaving(true);
+                setError(null);
+
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/catalog`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            subsection_id: subsectionId,
+                            name: formData.name.trim(),
+                            category: formData.category,
+                            notes: formData.notes.trim() || null
+                        })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        onCreated(data.catalog_id);
+                        setFormData({ name: '', category: 'Switch', notes: '' });
+                        onClose();
+                    } else {
+                        setError(data.message || 'Failed to create catalog entry');
+                    }
+                } catch (err) {
+                    setError('Failed to create catalog entry');
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center modal-overlay">
+                    <div className="rounded-lg p-6 w-full max-w-md" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold" style={{color: 'var(--color-text)'}}>Add to Catalog</h2>
+                            <button onClick={onClose} className="text-2xl" style={{color: 'var(--color-text-muted)'}}>&times;</button>
+                        </div>
+
+                        {error && (
+                            <div className="mb-4 p-3 rounded text-sm" style={{backgroundColor: 'rgba(239, 68, 68, 0.2)', color: '#f87171'}}>
+                                {error}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Name *</label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                    placeholder="e.g., Gateron Oil Kings"
+                                    className="w-full px-3 py-2 rounded"
+                                    style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Category *</label>
+                                <select
+                                    value={formData.category}
+                                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                                    className="w-full px-3 py-2 rounded"
+                                    style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                                >
+                                    {KEYBOARD_CATEGORIES.map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Notes (optional)</label>
+                                <input
+                                    type="text"
+                                    value={formData.notes}
+                                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                                    placeholder="e.g., Linear, 55g, factory lubed"
+                                    className="w-full px-3 py-2 rounded"
+                                    style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="px-4 py-2 rounded"
+                                    style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)'}}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={saving}
+                                    className="px-4 py-2 rounded font-medium"
+                                    style={{backgroundColor: 'var(--color-primary)', color: 'var(--color-text)'}}
+                                >
+                                    {saving ? 'Adding...' : 'Add to Catalog'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // Add Part Form
+        function AddPartForm({ subsectionId, catalog, projects, onSubmit, onCancel, onOpenCatalogModal, pendingCatalogId, clearPendingCatalogId }) {
+            const [formData, setFormData] = useState({
+                catalog_id: '',
+                quantity: 1,
+                estimated_value: '',
+                condition: 'New',
+                is_mystery: false,
+                notes: ''
+            });
+
+            // Auto-select newly created catalog entry
+            useEffect(() => {
+                if (pendingCatalogId && catalog.some(c => c.catalog_id === pendingCatalogId)) {
+                    setFormData(prev => ({ ...prev, catalog_id: String(pendingCatalogId) }));
+                    clearPendingCatalogId();
+                }
+            }, [pendingCatalogId, catalog]);
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (!formData.catalog_id) {
+                    return; // Catalog selection is required
+                }
+                const data = {
+                    subsection_id: subsectionId,
+                    catalog_id: parseInt(formData.catalog_id),
+                    quantity: parseInt(formData.quantity) || 1,
+                    condition: formData.condition,
+                    is_mystery: formData.is_mystery,
+                    notes: formData.notes
+                };
+
+                if (formData.estimated_value) {
+                    data.estimated_value = parseFloat(formData.estimated_value);
+                }
+
+                onSubmit(data);
+            };
+
+            return (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Part from Catalog *</label>
+                        <div className="flex gap-2">
+                            <select
+                                name="catalog_id"
+                                value={formData.catalog_id}
+                                onChange={(e) => setFormData({...formData, catalog_id: e.target.value})}
+                                required
+                                className="flex-1 px-3 py-2 rounded"
+                                style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                            >
+                                <option value="">-- Select a part (or click + to add) --</option>
+                                {catalog.map(item => (
+                                    <option key={item.catalog_id} value={item.catalog_id}>
+                                        {item.category}: {item.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <button
+                                type="button"
+                                onClick={onOpenCatalogModal}
+                                className="px-3 py-2 rounded font-bold"
+                                style={{backgroundColor: 'var(--color-success)', color: 'var(--color-text)'}}
+                                title="Add new catalog entry"
+                            >
+                                +
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Quantity</label>
+                            <input
+                                type="number"
+                                min="1"
+                                value={formData.quantity}
+                                onChange={(e) => setFormData({...formData, quantity: e.target.value})}
+                                className="w-full px-3 py-2 rounded"
+                                style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Cost/Value ($)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={formData.estimated_value}
+                                onChange={(e) => setFormData({...formData, estimated_value: e.target.value})}
+                                placeholder="0.00"
+                                className="w-full px-3 py-2 rounded"
+                                style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Condition</label>
+                        <select
+                            value={formData.condition}
+                            onChange={(e) => setFormData({...formData, condition: e.target.value})}
+                            className="w-full px-3 py-2 rounded"
+                            style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                        >
+                            <option value="New">New</option>
+                            <option value="Used-Like New">Used - Like New</option>
+                            <option value="Used-Good">Used - Good</option>
+                            <option value="For Parts">For Parts</option>
+                        </select>
+                    </div>
+
+                    <div className="flex items-center">
+                        <input
+                            type="checkbox"
+                            id="is_mystery"
+                            checked={formData.is_mystery}
+                            onChange={(e) => setFormData({...formData, is_mystery: e.target.checked})}
+                            className="mr-2"
+                        />
+                        <label htmlFor="is_mystery" className="text-sm" style={{color: 'var(--color-text-secondary)'}}>
+                            Mystery part (unidentified - will identify later)
+                        </label>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Notes</label>
+                        <textarea
+                            value={formData.notes}
+                            onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                            rows="2"
+                            placeholder="Where purchased, batch info, etc."
+                            className="w-full px-3 py-2 rounded"
+                            style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                        />
+                    </div>
+
+                    <div className="flex justify-end space-x-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="px-4 py-2 rounded"
+                            style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)'}}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="px-4 py-2 rounded font-medium"
+                            style={{backgroundColor: 'var(--color-primary)', color: 'var(--color-text)'}}
+                        >
+                            Add to Inventory
+                        </button>
+                    </div>
+                </form>
+            );
+        }
+
+        // Allocate Part Form
+        function AllocateForm({ part, projects, onSubmit, onCancel }) {
+            const [formData, setFormData] = useState({
+                project_id: '',
+                quantity: part.quantity,
+                staged: false
+            });
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSubmit({
+                    project_id: parseInt(formData.project_id),
+                    quantity: parseInt(formData.quantity),
+                    staged: formData.staged
+                });
+            };
+
+            return (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="p-3 rounded" style={{backgroundColor: 'var(--color-bg-tertiary)'}}>
+                        <div className="font-medium" style={{color: 'var(--color-text)'}}>
+                            {part.catalog_name || part.custom_name}
+                        </div>
+                        <div className="text-sm" style={{color: 'var(--color-text-muted)'}}>
+                            Available: {part.quantity}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Allocate to Project</label>
+                        <select
+                            value={formData.project_id}
+                            onChange={(e) => setFormData({...formData, project_id: e.target.value})}
+                            required
+                            className="w-full px-3 py-2 rounded"
+                            style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                        >
+                            <option value="">-- Select project --</option>
+                            {projects.map(p => (
+                                <option key={p.project_id} value={p.project_id}>
+                                    {p.name} ({p.status})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Quantity to Allocate</label>
+                        <input
+                            type="number"
+                            min="1"
+                            max={part.quantity}
+                            value={formData.quantity}
+                            onChange={(e) => setFormData({...formData, quantity: e.target.value})}
+                            className="w-full px-3 py-2 rounded"
+                            style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                        />
+                        <p className="text-xs mt-1" style={{color: 'var(--color-text-muted)'}}>
+                            Max: {part.quantity}
+                        </p>
+                    </div>
+
+                    <div className="flex items-center">
+                        <input
+                            type="checkbox"
+                            id="staged"
+                            checked={formData.staged}
+                            onChange={(e) => setFormData({...formData, staged: e.target.checked})}
+                            className="mr-2"
+                        />
+                        <label htmlFor="staged" className="text-sm" style={{color: 'var(--color-text-secondary)'}}>
+                            Stage only (plan mode - don't commit yet)
+                        </label>
+                    </div>
+
+                    <div className="flex justify-end space-x-3 pt-4">
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="px-4 py-2 rounded"
+                            style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)'}}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="px-4 py-2 rounded font-medium"
+                            style={{backgroundColor: 'var(--color-success)', color: 'var(--color-text)'}}
+                        >
+                            Allocate
+                        </button>
+                    </div>
+                </form>
+            );
+        }
+
+        function InventoryPage() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [inventory, setInventory] = useState([]);
+            const [catalog, setCatalog] = useState([]);
+            const [projects, setProjects] = useState([]);
+            const [summary, setSummary] = useState(null);
+            const [currentSubsection, setCurrentSubsection] = useState(() => {
+                const saved = localStorage.getItem('currentSubsection');
+                return saved ? parseInt(saved) : null;
+            });
+            const [subsections, setSubsections] = useState([]);
+            const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('theme') || DEFAULT_THEME);
+
+            // Filters
+            const [filterCategory, setFilterCategory] = useState('all');
+
+            // Modal states
+            const [showAddModal, setShowAddModal] = useState(false);
+            const [showCatalogModal, setShowCatalogModal] = useState(false);
+            const [pendingCatalogId, setPendingCatalogId] = useState(null);
+            const [allocatingPart, setAllocatingPart] = useState(null);
+
+            // Messages
+            const [message, setMessage] = useState(null);
+
+            useEffect(() => {
+                checkAuth();
+            }, []);
+
+            useEffect(() => {
+                if (user) {
+                    loadSubsections();
+                }
+            }, [user]);
+
+            useEffect(() => {
+                if (user && currentSubsection) {
+                    loadInventory();
+                    loadCatalog();
+                    loadProjects();
+                }
+            }, [user, currentSubsection]);
+
+            const checkAuth = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/check_auth`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.authenticated) {
+                        setUser(data.user);
+                    } else {
+                        window.location.href = '/login';
+                    }
+                } catch (err) {
+                    window.location.href = '/login';
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const loadSubsections = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/subsections`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success && data.subsections.length > 0) {
+                        setSubsections(data.subsections);
+                        if (!currentSubsection) {
+                            const firstId = data.subsections[0].subsection_id;
+                            setCurrentSubsection(firstId);
+                            localStorage.setItem('currentSubsection', firstId);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to load subsections:', err);
+                }
+            };
+
+            const loadInventory = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/inventory?subsection_id=${currentSubsection}`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        setInventory(data.parts);
+                        setSummary(data.summary);
+                    }
+                } catch (err) {
+                    console.error('Failed to load inventory:', err);
+                }
+            };
+
+            const loadCatalog = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/catalog?subsection_id=${currentSubsection}`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        setCatalog(data.catalog);
+                    }
+                } catch (err) {
+                    console.error('Failed to load catalog:', err);
+                }
+            };
+
+            const loadProjects = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/projects?subsection_id=${currentSubsection}`, { credentials: 'include' });
+                    const data = await res.json();
+                    if (data.success) {
+                        // Filter to projects that can receive parts
+                        setProjects(data.projects.filter(p => !['SOLD', 'COMPLETE', 'DISASSEMBLED'].includes(p.status)));
+                    }
+                } catch (err) {
+                    console.error('Failed to load projects:', err);
+                }
+            };
+
+            const handleAddPart = async (partData) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/inventory`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(partData)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setShowAddModal(false);
+                        loadInventory();
+                        setMessage({ type: 'success', text: 'Part added to inventory!' });
+                        setTimeout(() => setMessage(null), 3000);
+                    } else {
+                        setMessage({ type: 'error', text: data.message || 'Failed to add part' });
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Failed to add part' });
+                }
+            };
+
+            const handleAllocate = async (allocateData) => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/parts/${allocatingPart.part_id}/allocate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify(allocateData)
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        setAllocatingPart(null);
+                        loadInventory();
+                        setMessage({ type: 'success', text: data.message || 'Part allocated!' });
+                        setTimeout(() => setMessage(null), 3000);
+                    } else {
+                        setMessage({ type: 'error', text: data.message || 'Failed to allocate' });
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Failed to allocate part' });
+                }
+            };
+
+            const seedCatalog = async () => {
+                try {
+                    const res = await fetch(`${API_BASE_URL}/api/catalog/seed-keyboard`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ subsection_id: currentSubsection })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        loadCatalog();
+                        setMessage({ type: 'success', text: `Added ${data.entries_created} catalog entries!` });
+                        setTimeout(() => setMessage(null), 3000);
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Failed to seed catalog' });
+                }
+            };
+
+            const handleThemeChange = (e) => {
+                const newTheme = e.target.value;
+                setCurrentTheme(newTheme);
+                applyTheme(newTheme);
+            };
+
+            const handleLogout = async () => {
+                await fetch(`${API_BASE_URL}/api/logout`, { method: 'POST', credentials: 'include' });
+                window.location.href = '/login';
+            };
+
+            const switchSubsection = (id) => {
+                setCurrentSubsection(id);
+                localStorage.setItem('currentSubsection', id);
+            };
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{borderColor: 'var(--color-primary)'}}></div>
+                    </div>
+                );
+            }
+
+            // Get unique categories for filter
+            const categories = [...new Set(inventory.map(p => p.catalog_category).filter(Boolean))];
+
+            // Filter inventory
+            const filteredInventory = inventory.filter(p => {
+                if (filterCategory !== 'all' && p.catalog_category !== filterCategory) return false;
+                return true;
+            });
+
+            const currentSubsectionName = subsections.find(s => s.subsection_id === currentSubsection)?.name || 'Inventory';
+
+            return (
+                <div className="min-h-screen">
+                    {/* Navigation */}
+                    <nav className="px-4 py-3 shadow-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                        <div className="max-w-7xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center space-x-6">
+                                <a href="/dashboard" className="text-xl font-bold" style={{color: 'var(--color-primary)'}}>Artifact Live</a>
+                                <a href="/dashboard" className="text-sm" style={{color: 'var(--color-text-muted)'}}>Dashboard</a>
+                                <a href="/projects" className="text-sm" style={{color: 'var(--color-text-muted)'}}>Projects</a>
+                                <span className="text-sm font-medium" style={{color: 'var(--color-text)'}}>Inventory</span>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <select
+                                    value={currentSubsection || ''}
+                                    onChange={(e) => switchSubsection(parseInt(e.target.value))}
+                                    className="px-2 py-1 rounded text-sm"
+                                    style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                                >
+                                    {subsections.map(sub => (
+                                        <option key={sub.subsection_id} value={sub.subsection_id}>{sub.name}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    value={currentTheme}
+                                    onChange={handleThemeChange}
+                                    className="px-2 py-1 rounded text-xs"
+                                    style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)'}}
+                                >
+                                    {Object.keys(THEMES).map(key => (
+                                        <option key={key} value={key}>{THEMES[key].name}</option>
+                                    ))}
+                                </select>
+                                <button onClick={handleLogout} className="text-sm px-3 py-1 rounded" style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-secondary)'}}>
+                                    Sign Out
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 py-8">
+                        {/* Messages */}
+                        {message && (
+                            <div className={`mb-4 p-3 rounded ${message.type === 'error' ? 'bg-red-900' : 'bg-green-900'}`}>
+                                {message.text}
+                            </div>
+                        )}
+
+                        {/* Header */}
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h1 className="text-2xl font-bold" style={{color: 'var(--color-text)'}}>{currentSubsectionName} Inventory</h1>
+                                {summary && (
+                                    <p className="text-sm mt-1" style={{color: 'var(--color-text-muted)'}}>
+                                        {summary.total_parts} items ({summary.total_quantity} total qty)
+                                        {summary.mystery_count > 0 && <span className="ml-2 text-yellow-400">• {summary.mystery_count} mystery</span>}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="flex space-x-3">
+                                {catalog.length === 0 && (
+                                    <button
+                                        onClick={seedCatalog}
+                                        className="px-4 py-2 rounded font-medium"
+                                        style={{backgroundColor: 'var(--color-warning)', color: '#000'}}
+                                    >
+                                        Seed Keyboard Catalog
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setShowAddModal(true)}
+                                    className="px-4 py-2 rounded font-medium"
+                                    style={{backgroundColor: 'var(--color-primary)', color: 'var(--color-text)'}}
+                                >
+                                    + Add Parts
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Filters */}
+                        <div className="flex space-x-4 mb-6">
+                            <select
+                                value={filterCategory}
+                                onChange={(e) => setFilterCategory(e.target.value)}
+                                className="px-3 py-2 rounded"
+                                style={{backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text)', borderColor: 'var(--color-border)'}}
+                            >
+                                <option value="all">All Categories</option>
+                                {categories.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Inventory Grid */}
+                        {filteredInventory.length === 0 ? (
+                            <div className="text-center py-12 rounded-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                                <p style={{color: 'var(--color-text-muted)'}}>No parts in inventory yet.</p>
+                                <p className="text-sm mt-2" style={{color: 'var(--color-text-muted)'}}>
+                                    Click "Add Parts" to start building your inventory.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {filteredInventory.map(part => (
+                                    <div
+                                        key={part.part_id}
+                                        className="p-4 rounded-lg border"
+                                        style={{backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border)'}}
+                                    >
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <h3 className="font-medium" style={{color: 'var(--color-text)'}}>
+                                                    {part.catalog_name || part.custom_name}
+                                                </h3>
+                                                {part.catalog_category && (
+                                                    <span className="text-xs px-2 py-0.5 rounded" style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-muted)'}}>
+                                                        {part.catalog_category}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {part.is_mystery ? (
+                                                <span className="text-xs px-2 py-1 rounded" style={{backgroundColor: 'var(--color-warning)', color: '#000'}}>
+                                                    Mystery
+                                                </span>
+                                            ) : null}
+                                        </div>
+
+                                        <div className="text-2xl font-bold mb-2" style={{color: 'var(--color-primary)'}}>
+                                            {part.quantity}
+                                            <span className="text-sm font-normal ml-1" style={{color: 'var(--color-text-muted)'}}>qty</span>
+                                        </div>
+
+                                        {part.estimated_value && (
+                                            <div className="text-sm mb-2" style={{color: 'var(--color-text-secondary)'}}>
+                                                ${parseFloat(part.estimated_value).toFixed(2)}
+                                            </div>
+                                        )}
+
+                                        {part.notes && (
+                                            <p className="text-xs mb-3" style={{color: 'var(--color-text-muted)'}}>{part.notes}</p>
+                                        )}
+
+                                        <button
+                                            onClick={() => setAllocatingPart(part)}
+                                            className="w-full py-2 rounded text-sm font-medium"
+                                            style={{backgroundColor: 'var(--color-success)', color: 'var(--color-text)'}}
+                                        >
+                                            Allocate to Project
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Add Part Modal */}
+                    <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Parts to Inventory">
+                        <AddPartForm
+                            subsectionId={currentSubsection}
+                            catalog={catalog}
+                            projects={projects}
+                            onSubmit={handleAddPart}
+                            onCancel={() => setShowAddModal(false)}
+                            onOpenCatalogModal={() => setShowCatalogModal(true)}
+                            pendingCatalogId={pendingCatalogId}
+                            clearPendingCatalogId={() => setPendingCatalogId(null)}
+                        />
+                    </Modal>
+
+                    {/* Add Catalog Entry Modal */}
+                    <AddCatalogModal
+                        isOpen={showCatalogModal}
+                        onClose={() => setShowCatalogModal(false)}
+                        subsectionId={currentSubsection}
+                        onCreated={(newCatalogId) => {
+                            setPendingCatalogId(newCatalogId);
+                            loadCatalog();
+                        }}
+                    />
+
+                    {/* Allocate Modal */}
+                    <Modal isOpen={!!allocatingPart} onClose={() => setAllocatingPart(null)} title="Allocate to Project">
+                        {allocatingPart && (
+                            <AllocateForm
+                                part={allocatingPart}
+                                projects={projects}
+                                onSubmit={handleAllocate}
+                                onCancel={() => setAllocatingPart(null)}
+                            />
+                        )}
+                    </Modal>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<InventoryPage />, document.getElementById('root'));
+    </script>
+</body>
+</html>

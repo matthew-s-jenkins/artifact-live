@@ -207,6 +207,13 @@ def serve_settings():
     return send_from_directory('../frontend', 'settings.html')
 
 
+@app.route('/inventory')
+@login_required
+def serve_inventory():
+    """Serve inventory page."""
+    return send_from_directory('../frontend', 'inventory.html')
+
+
 # =============================================================================
 # HEALTH CHECK API
 # =============================================================================
