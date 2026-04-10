@@ -229,7 +229,18 @@ def verify_schema():
         'financial_ledger',
         'inventory_layers',
         'expense_categories',
-        'schema_version'
+        'schema_version',
+        'business_events',
+        'transactions',
+        # Construction sim (migration 007)
+        'sim_developments',
+        'sim_crew_types',
+        'sim_crews',
+        'sim_lot_types',
+        'sim_phase_templates',
+        'sim_lots',
+        'sim_lot_phases',
+        'sim_daily_log',
     ]
 
     expected_views = [

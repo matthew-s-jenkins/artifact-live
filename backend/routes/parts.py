@@ -34,7 +34,13 @@ from flask_login import login_required, current_user
 import sqlite3
 import uuid
 import json
+import sys
+from datetime import datetime
 from pathlib import Path
+
+# Add backend to path so services module is importable
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from services.accounting import create_business_event
 
 
 parts_bp = Blueprint('parts', __name__)
@@ -348,6 +354,38 @@ def update_part(part_id):
         cursor.execute(f"""
             UPDATE project_parts SET {', '.join(updates)} WHERE part_id = ?
         """, params)
+
+        # --- Accounting integration ---
+        # When a part is marked SOLD with a sale price, auto-create a sale event
+        if data.get('status') == 'SOLD' and data.get('actual_sale_price'):
+            try:
+                sale_metadata = {
+                    'items': [{
+                        'part_id': part_id,
+                        'quantity': data.get('quantity', 1),
+                        'sale_price': float(data['actual_sale_price']),
+                    }],
+                }
+                if data.get('fees_paid'):
+                    sale_metadata['fees'] = float(data['fees_paid'])
+                if data.get('shipping_paid'):
+                    sale_metadata['shipping_cost'] = float(data['shipping_paid'])
+                if data.get('listing_url'):
+                    sale_metadata['platform'] = 'marketplace'
+                    sale_metadata['listing_url'] = data['listing_url']
+
+                create_business_event(
+                    user_id=int(current_user.id),
+                    event_type='inventory_sale',
+                    event_date=data.get('sold_date', datetime.now().strftime('%Y-%m-%d')),
+                    metadata=sale_metadata,
+                    entity_type='part',
+                    entity_id=part_id,
+                    auto_post=True,
+                    conn=conn,
+                )
+            except Exception as acct_err:
+                print(f"[PARTS] Accounting event failed (non-blocking): {acct_err}")
 
         conn.commit()
 

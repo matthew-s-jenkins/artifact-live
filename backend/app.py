@@ -214,6 +214,13 @@ def serve_inventory():
     return send_from_directory('../frontend', 'inventory.html')
 
 
+@app.route('/simulation')
+@login_required
+def serve_simulation():
+    """Serve construction simulation page."""
+    return send_from_directory('../frontend', 'simulation.html')
+
+
 # =============================================================================
 # HEALTH CHECK API
 # =============================================================================
@@ -432,10 +439,14 @@ def check_auth():
 from routes.projects import projects_bp
 from routes.parts import parts_bp
 from routes.pricing import pricing_bp
+from routes.events import events_bp
+from routes.simulation import simulation_bp
 
 app.register_blueprint(projects_bp, url_prefix='/api')
 app.register_blueprint(parts_bp, url_prefix='/api')
 app.register_blueprint(pricing_bp, url_prefix='/api')
+app.register_blueprint(events_bp, url_prefix='/api')
+app.register_blueprint(simulation_bp)  # Routes already have /api/sim/ prefix
 
 
 # =============================================================================

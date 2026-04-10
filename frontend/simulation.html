@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Construction Sim - Artifact Live</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏗️</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="themes.js"></script>
+    <style>
+        :root {
+            --color-bg: #111827;
+            --color-bg-secondary: #1f2937;
+            --color-bg-tertiary: #374151;
+            --color-bg-hover: #4b5563;
+            --color-text: #f9fafb;
+            --color-text-secondary: #d1d5db;
+            --color-text-muted: #9ca3af;
+            --color-border: #4b5563;
+            --color-border-light: #374151;
+            --color-primary: #06b6d4;
+            --color-primary-hover: #0891b2;
+            --color-primary-light: #22d3ee;
+            --color-success: #10b981;
+            --color-success-light: #34d399;
+            --color-danger: #ef4444;
+            --color-danger-light: #f87171;
+            --color-warning: #f59e0b;
+            --color-warning-light: #fbbf24;
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        .tab-active {
+            border-bottom: 2px solid var(--color-primary);
+            color: var(--color-primary);
+        }
+        .phase-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            margin-right: 2px;
+        }
+    </style>
+</head>
+<body style="background-color: var(--color-bg); color: var(--color-text);">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+        const API = '';
+
+        // Theme
+        const applyTheme = (name) => {
+            const theme = THEMES[name] || THEMES[DEFAULT_THEME];
+            Object.entries(theme.colors).forEach(([k, v]) => {
+                document.documentElement.style.setProperty(
+                    `--color-${k.replace(/([A-Z])/g, '-$1').toLowerCase()}`, v
+                );
+            });
+            localStorage.setItem('theme', name);
+        };
+        applyTheme(localStorage.getItem('theme') || DEFAULT_THEME);
+
+        const fmt = (v) => v == null ? '$0' :
+            new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+        const fmtD = (v) => v == null ? '$0.00' :
+            new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
+        const pct = (v) => `${(v || 0).toFixed(1)}%`;
+
+        const PHASE_COLORS = {
+            completed: '#10b981',
+            in_progress: '#f59e0b',
+            ready: '#3b82f6',
+            curing: '#8b5cf6',
+            blocked: '#4b5563',
+            pending: '#374151',
+        };
+
+        // =====================================================================
+        // MAIN APP
+        // =====================================================================
+        function SimApp() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [tab, setTab] = useState('setup');
+            const [devId, setDevId] = useState(() => {
+                const saved = localStorage.getItem('sim_dev_id');
+                return saved ? parseInt(saved) : null;
+            });
+            const [devStatus, setDevStatus] = useState(null);
+            const [error, setError] = useState(null);
+
+            useEffect(() => {
+                fetch(`${API}/api/check_auth`, { credentials: 'include' })
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(d => { setUser(d); setLoading(false); })
+                    .catch(() => { window.location.href = '/login'; });
+            }, []);
+
+            const loadStatus = useCallback(async () => {
+                if (!devId) return;
+                try {
+                    const r = await fetch(`${API}/api/sim/developments/${devId}`, { credentials: 'include' });
+                    if (r.ok) {
+                        const d = await r.json();
+                        setDevStatus(d);
+                        if (d.status === 'running' || d.status === 'completed') {
+                            setTab(prev => prev === 'setup' ? 'operations' : prev);
+                        }
+                    } else {
+                        setDevId(null);
+                        localStorage.removeItem('sim_dev_id');
+                    }
+                } catch (e) { setError(e.message); }
+            }, [devId]);
+
+            useEffect(() => {
+                if (devId) loadStatus();
+            }, [devId, loadStatus]);
+
+            const handleDevCreated = (id) => {
+                setDevId(id);
+                localStorage.setItem('sim_dev_id', id);
+            };
+
+            const handleNewSim = () => {
+                setDevId(null);
+                setDevStatus(null);
+                setTab('setup');
+                localStorage.removeItem('sim_dev_id');
+            };
+
+            if (loading) return <div className="flex items-center justify-center min-h-screen"><p>Loading...</p></div>;
+
+            const tabs = [
+                { id: 'setup', label: 'Setup' },
+                { id: 'operations', label: 'Daily Ops', disabled: !devStatus || devStatus.status === 'setup' },
+                { id: 'financials', label: 'Financials', disabled: !devStatus || devStatus.status === 'setup' },
+                { id: 'lots', label: 'Lot Grid', disabled: !devStatus },
+            ];
+
+            return (
+                <div className="min-h-screen">
+                    {/* Nav */}
+                    <nav className="px-4 py-3 shadow-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                        <div className="max-w-7xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center space-x-6">
+                                <a href="/dashboard" className="text-xl font-bold" style={{color: 'var(--color-primary)'}}>Artifact Live</a>
+                                <span className="text-sm font-medium" style={{color: 'var(--color-text)'}}>Construction Sim</span>
+                                <a href="/dashboard" className="text-sm" style={{color: 'var(--color-text-muted)'}}>Dashboard</a>
+                                <a href="/projects" className="text-sm" style={{color: 'var(--color-text-muted)'}}>Projects</a>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                {devStatus && (
+                                    <button onClick={handleNewSim} className="text-xs px-2 py-1 rounded"
+                                        style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-muted)'}}>
+                                        New Sim
+                                    </button>
+                                )}
+                                <span className="text-sm" style={{color: 'var(--color-text-muted)'}}>{user?.email}</span>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Tabs */}
+                    <div className="max-w-7xl mx-auto px-4 mt-4">
+                        <div className="flex space-x-6 border-b" style={{borderColor: 'var(--color-border-light)'}}>
+                            {tabs.map(t => (
+                                <button key={t.id}
+                                    onClick={() => !t.disabled && setTab(t.id)}
+                                    className={`pb-2 text-sm font-medium ${tab === t.id ? 'tab-active' : ''}`}
+                                    style={{
+                                        color: t.disabled ? 'var(--color-bg-hover)' :
+                                               tab === t.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                        cursor: t.disabled ? 'not-allowed' : 'pointer',
+                                    }}
+                                    disabled={t.disabled}
+                                >
+                                    {t.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <main className="max-w-7xl mx-auto px-4 py-6">
+                        {error && (
+                            <div className="mb-4 p-3 rounded text-sm" style={{backgroundColor: 'var(--color-danger)', color: '#fff'}}>
+                                {error}
+                                <button onClick={() => setError(null)} className="ml-4 underline">dismiss</button>
+                            </div>
+                        )}
+                        {tab === 'setup' && <SetupTab devId={devId} devStatus={devStatus} onCreated={handleDevCreated} onRefresh={loadStatus} setError={setError} />}
+                        {tab === 'operations' && <OpsTab devId={devId} devStatus={devStatus} onRefresh={loadStatus} setError={setError} />}
+                        {tab === 'financials' && <FinancialsTab devId={devId} devStatus={devStatus} setError={setError} />}
+                        {tab === 'lots' && <LotsTab devId={devId} devStatus={devStatus} setError={setError} />}
+                    </main>
+                </div>
+            );
+        }
+
+        // =====================================================================
+        // SETUP TAB — Create development, see config
+        // =====================================================================
+        function SetupTab({ devId, devStatus, onCreated, onRefresh, setError }) {
+            const [name, setName] = useState('Oakwood Estates');
+            const [numHouses, setNumHouses] = useState(10);
+            const [budget, setBudget] = useState(2000000);
+            const [creating, setCreating] = useState(false);
+            const [starting, setStarting] = useState(false);
+
+            const handleCreate = async () => {
+                setCreating(true);
+                try {
+                    const r = await fetch(`${API}/api/sim/developments`, {
+                        method: 'POST', credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, num_houses: numHouses, budget, start_date: '2026-01-01' }),
+                    });
+                    const d = await r.json();
+                    if (r.ok) { onCreated(d.development_id); }
+                    else { setError(d.error || 'Failed to create'); }
+                } catch (e) { setError(e.message); }
+                setCreating(false);
+            };
+
+            const handleStart = async () => {
+                setStarting(true);
+                try {
+                    const r = await fetch(`${API}/api/sim/developments/${devId}/start`, {
+                        method: 'POST', credentials: 'include',
+                    });
+                    if (r.ok) { onRefresh(); }
+                    else { const d = await r.json(); setError(d.error); }
+                } catch (e) { setError(e.message); }
+                setStarting(false);
+            };
+
+            if (!devId) {
+                return (
+                    <div className="max-w-lg">
+                        <h2 className="text-2xl font-bold mb-6" style={{color: 'var(--color-primary)'}}>New Development</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Development Name</label>
+                                <input value={name} onChange={e => setName(e.target.value)}
+                                    className="w-full px-3 py-2 rounded text-sm focus:outline-none"
+                                    style={{backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text)', borderColor: 'var(--color-border)', border: '1px solid'}} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Houses</label>
+                                    <input type="number" value={numHouses} onChange={e => setNumHouses(parseInt(e.target.value) || 1)}
+                                        min="1" max="100"
+                                        className="w-full px-3 py-2 rounded text-sm focus:outline-none"
+                                        style={{backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text)', border: '1px solid var(--color-border)'}} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Budget</label>
+                                    <input type="number" value={budget} onChange={e => setBudget(parseInt(e.target.value) || 0)}
+                                        className="w-full px-3 py-2 rounded text-sm focus:outline-none"
+                                        style={{backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text)', border: '1px solid var(--color-border)'}} />
+                                </div>
+                            </div>
+                            <div className="pt-2">
+                                <p className="text-xs mb-3" style={{color: 'var(--color-text-muted)'}}>
+                                    MVP preset: 5 crews (2 General, 1 Concrete, 2 Framing), 5 phases per house, FIFO scheduling, 3-day concrete cure.
+                                </p>
+                                <button onClick={handleCreate} disabled={creating || !name}
+                                    className="px-6 py-2 rounded font-medium text-sm"
+                                    style={{backgroundColor: 'var(--color-primary)', color: '#fff', opacity: creating ? 0.6 : 1}}>
+                                    {creating ? 'Creating...' : 'Create Development'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!devStatus) return <p>Loading...</p>;
+
+            return (
+                <div>
+                    <h2 className="text-2xl font-bold mb-2" style={{color: 'var(--color-primary)'}}>{devStatus.name}</h2>
+                    <p className="text-sm mb-6" style={{color: 'var(--color-text-muted)'}}>
+                        Status: <span className="font-medium" style={{color: devStatus.status === 'completed' ? 'var(--color-success)' : 'var(--color-warning)'}}>{devStatus.status}</span>
+                        {devStatus.current_day > 0 && ` — Day ${devStatus.current_day}`}
+                    </p>
+
+                    <div className="grid grid-cols-4 gap-4 mb-6">
+                        <StatCard label="Houses" value={Object.values(devStatus.lots || {}).reduce((a, b) => a + b, 0)} />
+                        <StatCard label="Phases" value={Object.values(devStatus.phases || {}).reduce((a, b) => a + b, 0)} />
+                        <StatCard label="Total Labor Hours" value={`${(devStatus.labor?.total_hours || 0).toLocaleString()}h`} />
+                        <StatCard label="Total Labor Cost" value={fmt(devStatus.labor?.total_cost || 0)} />
+                    </div>
+
+                    {/* Crew roster */}
+                    <h3 className="text-lg font-semibold mb-3">Crew Roster</h3>
+                    <div className="rounded overflow-hidden mb-6" style={{border: '1px solid var(--color-border-light)'}}>
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                                    <th className="text-left px-4 py-2">Crew</th>
+                                    <th className="text-left px-4 py-2">Type</th>
+                                    <th className="text-right px-4 py-2">Days Worked</th>
+                                    <th className="text-right px-4 py-2">Hours</th>
+                                    <th className="text-right px-4 py-2">Utilization</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(devStatus.crews || []).map(c => (
+                                    <tr key={c.crew_id} style={{borderTop: '1px solid var(--color-border-light)'}}>
+                                        <td className="px-4 py-2 font-medium">{c.name}</td>
+                                        <td className="px-4 py-2" style={{color: 'var(--color-text-muted)'}}>{c.crew_type}</td>
+                                        <td className="px-4 py-2 text-right">{c.days_worked}</td>
+                                        <td className="px-4 py-2 text-right">{c.total_hours}</td>
+                                        <td className="px-4 py-2 text-right">
+                                            <span style={{color: c.utilization_pct > 80 ? 'var(--color-success)' :
+                                                                 c.utilization_pct > 50 ? 'var(--color-warning)' : 'var(--color-danger)'}}>
+                                                {pct(c.utilization_pct)}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {devStatus.status === 'setup' && (
+                        <button onClick={handleStart} disabled={starting}
+                            className="px-6 py-2 rounded font-medium text-sm"
+                            style={{backgroundColor: 'var(--color-success)', color: '#fff', opacity: starting ? 0.6 : 1}}>
+                            {starting ? 'Starting...' : 'Start Construction'}
+                        </button>
+                    )}
+                </div>
+            );
+        }
+
+        // =====================================================================
+        // DAILY OPS TAB — Site Manager's screen
+        // =====================================================================
+        function OpsTab({ devId, devStatus, onRefresh, setError }) {
+            const [advancing, setAdvancing] = useState(false);
+            const [dayResult, setDayResult] = useState(null);
+            const [multiResult, setMultiResult] = useState(null);
+            const [daysToAdvance, setDaysToAdvance] = useState(1);
+            const [autoRunning, setAutoRunning] = useState(false);
+            const autoRef = useRef(false);
+
+            const advance = async (days = 1) => {
+                setAdvancing(true);
+                try {
+                    const r = await fetch(`${API}/api/sim/developments/${devId}/advance`, {
+                        method: 'POST', credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ days }),
+                    });
+                    const d = await r.json();
+                    if (!r.ok) { setError(d.error); setAdvancing(false); return d; }
+                    if (days === 1) { setDayResult(d); setMultiResult(null); }
+                    else { setMultiResult(d); setDayResult(null); }
+                    onRefresh();
+                    setAdvancing(false);
+                    return d;
+                } catch (e) { setError(e.message); setAdvancing(false); return null; }
+            };
+
+            const runToCompletion = async () => {
+                autoRef.current = true;
+                setAutoRunning(true);
+                while (autoRef.current) {
+                    const d = await advance(10);
+                    if (!d || d.development_complete || (d.daily_log && d.daily_log[d.daily_log.length - 1]?.development_complete)) {
+                        autoRef.current = false;
+                        break;
+                    }
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                setAutoRunning(false);
+                onRefresh();
+            };
+
+            const stopAuto = () => { autoRef.current = false; };
+
+            const isComplete = devStatus?.status === 'completed';
+
+            return (
+                <div>
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="text-2xl font-bold" style={{color: 'var(--color-primary)'}}>
+                                Daily Operations
+                            </h2>
+                            <p className="text-sm mt-1" style={{color: 'var(--color-text-muted)'}}>
+                                {devStatus?.name} — Day {devStatus?.current_day || 0}
+                                {isComplete && <span style={{color: 'var(--color-success)'}}> — COMPLETE</span>}
+                            </p>
+                        </div>
+                        {!isComplete && (
+                            <div className="flex items-center space-x-3">
+                                <button onClick={() => advance(1)} disabled={advancing}
+                                    className="px-4 py-2 rounded text-sm font-medium"
+                                    style={{backgroundColor: 'var(--color-primary)', color: '#fff', opacity: advancing ? 0.6 : 1}}>
+                                    {advancing ? '...' : 'Advance 1 Day'}
+                                </button>
+                                <input type="number" value={daysToAdvance} onChange={e => setDaysToAdvance(Math.max(1, parseInt(e.target.value) || 1))}
+                                    min="1" max="365" className="w-16 px-2 py-2 rounded text-sm text-center"
+                                    style={{backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text)', border: '1px solid var(--color-border)'}} />
+                                <button onClick={() => advance(daysToAdvance)} disabled={advancing}
+                                    className="px-4 py-2 rounded text-sm font-medium"
+                                    style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text)'}}>
+                                    Advance
+                                </button>
+                                {!autoRunning ? (
+                                    <button onClick={runToCompletion}
+                                        className="px-4 py-2 rounded text-sm font-medium"
+                                        style={{backgroundColor: 'var(--color-warning)', color: '#000'}}>
+                                        Run to Completion
+                                    </button>
+                                ) : (
+                                    <button onClick={stopAuto}
+                                        className="px-4 py-2 rounded text-sm font-medium"
+                                        style={{backgroundColor: 'var(--color-danger)', color: '#fff'}}>
+                                        Stop
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Overall Progress */}
+                    <ProgressSummary devStatus={devStatus} />
+
+                    {/* Single day result */}
+                    {dayResult && (
+                        <div className="mt-6 p-4 rounded" style={{backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-light)'}}>
+                            <h3 className="text-sm font-semibold mb-3">Day {dayResult.day} — {dayResult.date}</h3>
+                            <div className="grid grid-cols-4 gap-4 mb-3">
+                                <MiniStat label="Crews Working" value={dayResult.crews_working} />
+                                <MiniStat label="Hours Logged" value={`${dayResult.total_hours}h`} />
+                                <MiniStat label="Labor Cost" value={fmtD(dayResult.total_labor_cost)} />
+                                <MiniStat label="Phases Done" value={dayResult.phases_completed} />
+                            </div>
+                            {dayResult.crew_details && dayResult.crew_details.length > 0 && (
+                                <div className="text-xs space-y-1" style={{color: 'var(--color-text-muted)'}}>
+                                    {dayResult.crew_details.map((c, i) => (
+                                        <div key={i}>{c.crew_name} worked {c.hours_worked}h on {c.lot} ({c.phase}) — {fmtD(c.labor_cost)}</div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Multi-day result */}
+                    {multiResult && (
+                        <div className="mt-6 p-4 rounded" style={{backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-light)'}}>
+                            <h3 className="text-sm font-semibold mb-3">
+                                {multiResult.days_advanced} days advanced (through day {multiResult.final_day})
+                                {multiResult.development_complete && <span style={{color: 'var(--color-success)'}}> — COMPLETE!</span>}
+                            </h3>
+                            <div className="grid grid-cols-4 gap-4">
+                                <MiniStat label="Total Hours" value={`${multiResult.total_hours.toLocaleString()}h`} />
+                                <MiniStat label="Total Cost" value={fmt(multiResult.total_labor_cost)} />
+                                <MiniStat label="Phases Completed" value={multiResult.total_phases_completed} />
+                                <MiniStat label="Lots Completed" value={multiResult.total_lots_completed} />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // =====================================================================
+        // FINANCIALS TAB — Accountant / CFO screen
+        // =====================================================================
+        function FinancialsTab({ devId, devStatus, setError }) {
+            const [financials, setFinancials] = useState(null);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                if (!devId) return;
+                fetch(`${API}/api/sim/developments/${devId}/financials`, { credentials: 'include' })
+                    .then(r => r.json())
+                    .then(d => { setFinancials(d); setLoading(false); })
+                    .catch(e => { setError(e.message); setLoading(false); });
+            }, [devId, devStatus?.current_day]);
+
+            if (loading) return <p>Loading financials...</p>;
+            if (!financials) return <p>No data</p>;
+
+            const maxPhaseCost = Math.max(...(financials.cost_by_phase || []).map(p => p.total_cost), 1);
+
+            return (
+                <div>
+                    <h2 className="text-2xl font-bold mb-2" style={{color: 'var(--color-primary)'}}>Financial Dashboard</h2>
+                    <p className="text-sm mb-6" style={{color: 'var(--color-text-muted)'}}>
+                        {financials.development_name} — Day {financials.current_day}
+                    </p>
+
+                    {/* Budget overview */}
+                    <div className="grid grid-cols-4 gap-4 mb-8">
+                        <StatCard label="Budget" value={fmt(financials.budget)} />
+                        <StatCard label="Spent" value={fmt(financials.total_spent)} color={financials.budget_used_pct > 90 ? 'var(--color-danger)' : null} />
+                        <StatCard label="Remaining" value={fmt(financials.budget_remaining)} color="var(--color-success)" />
+                        <StatCard label="% Used" value={pct(financials.budget_used_pct)} color={financials.budget_used_pct > 80 ? 'var(--color-warning)' : null} />
+                    </div>
+
+                    {/* Budget bar */}
+                    <div className="mb-8">
+                        <div className="h-4 rounded-full overflow-hidden" style={{backgroundColor: 'var(--color-bg-tertiary)'}}>
+                            <div className="h-full progress-bar rounded-full"
+                                style={{
+                                    width: `${Math.min(financials.budget_used_pct, 100)}%`,
+                                    backgroundColor: financials.budget_used_pct > 90 ? 'var(--color-danger)' :
+                                                     financials.budget_used_pct > 70 ? 'var(--color-warning)' : 'var(--color-success)',
+                                }} />
+                        </div>
+                    </div>
+
+                    {/* Cost by phase — horizontal bars */}
+                    <h3 className="text-lg font-semibold mb-4">Cost by Phase</h3>
+                    <div className="space-y-3 mb-8">
+                        {(financials.cost_by_phase || []).map(p => (
+                            <div key={p.phase_name}>
+                                <div className="flex justify-between text-sm mb-1">
+                                    <span>{p.phase_name}</span>
+                                    <span style={{color: 'var(--color-text-muted)'}}>
+                                        {fmt(p.total_cost)} — {p.total_hours.toLocaleString()}h ({p.crew_days} crew-days)
+                                    </span>
+                                </div>
+                                <div className="h-3 rounded-full overflow-hidden" style={{backgroundColor: 'var(--color-bg-tertiary)'}}>
+                                    <div className="h-full progress-bar rounded-full"
+                                        style={{width: `${(p.total_cost / maxPhaseCost) * 100}%`, backgroundColor: 'var(--color-primary)'}} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Account balances */}
+                    <h3 className="text-lg font-semibold mb-4">Account Balances</h3>
+                    <div className="rounded overflow-hidden" style={{border: '1px solid var(--color-border-light)'}}>
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                                    <th className="text-left px-4 py-2">Account</th>
+                                    <th className="text-left px-4 py-2">Type</th>
+                                    <th className="text-right px-4 py-2">Debits</th>
+                                    <th className="text-right px-4 py-2">Credits</th>
+                                    <th className="text-right px-4 py-2">Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(financials.account_balances || []).map(a => (
+                                    <tr key={a.account_id} style={{borderTop: '1px solid var(--color-border-light)'}}>
+                                        <td className="px-4 py-2 font-medium">{a.account_name.replace(financials.development_name + ' — ', '')}</td>
+                                        <td className="px-4 py-2" style={{color: 'var(--color-text-muted)'}}>{a.account_type}</td>
+                                        <td className="px-4 py-2 text-right">{fmtD(a.total_debits)}</td>
+                                        <td className="px-4 py-2 text-right">{fmtD(a.total_credits)}</td>
+                                        <td className="px-4 py-2 text-right font-medium"
+                                            style={{color: a.balance >= 0 ? 'var(--color-success)' : 'var(--color-danger)'}}>
+                                            {fmtD(a.balance)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
+        // =====================================================================
+        // LOTS TAB — Project Manager's screen
+        // =====================================================================
+        function LotsTab({ devId, devStatus, setError }) {
+            const [lots, setLots] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [selectedLot, setSelectedLot] = useState(null);
+            const [lotDetail, setLotDetail] = useState(null);
+
+            const loadLots = () => {
+                fetch(`${API}/api/sim/developments/${devId}/lots`, { credentials: 'include' })
+                    .then(r => r.json())
+                    .then(d => { setLots(d.lots || []); setLoading(false); })
+                    .catch(e => { setError(e.message); setLoading(false); });
+            };
+
+            useEffect(() => { if (devId) loadLots(); }, [devId, devStatus?.current_day]);
+
+            const loadLotDetail = (lotId) => {
+                setSelectedLot(lotId);
+                fetch(`${API}/api/sim/developments/${devId}/lots/${lotId}`, { credentials: 'include' })
+                    .then(r => r.json())
+                    .then(d => setLotDetail(d))
+                    .catch(e => setError(e.message));
+            };
+
+            if (loading) return <p>Loading lots...</p>;
+
+            return (
+                <div>
+                    <h2 className="text-2xl font-bold mb-2" style={{color: 'var(--color-primary)'}}>Lot Grid</h2>
+                    <p className="text-sm mb-6" style={{color: 'var(--color-text-muted)'}}>
+                        Click a lot to drill into its phase detail.
+                    </p>
+
+                    {/* Lot grid */}
+                    <div className="grid grid-cols-5 gap-3 mb-8">
+                        {lots.map(lot => (
+                            <button key={lot.lot_id} onClick={() => loadLotDetail(lot.lot_id)}
+                                className="p-3 rounded text-left transition-all"
+                                style={{
+                                    backgroundColor: selectedLot === lot.lot_id ? 'var(--color-bg-tertiary)' : 'var(--color-bg-secondary)',
+                                    border: `2px solid ${lot.status === 'completed' ? 'var(--color-success)' :
+                                                         lot.status === 'in_progress' ? 'var(--color-warning)' : 'var(--color-border-light)'}`,
+                                }}>
+                                <div className="text-sm font-medium">{lot.label || `Lot #${lot.lot_number}`}</div>
+                                <div className="mt-1">
+                                    <div className="h-2 rounded-full overflow-hidden" style={{backgroundColor: 'var(--color-bg-hover)'}}>
+                                        <div className="h-full progress-bar rounded-full"
+                                            style={{
+                                                width: `${lot.progress_pct}%`,
+                                                backgroundColor: lot.status === 'completed' ? 'var(--color-success)' : 'var(--color-primary)',
+                                            }} />
+                                    </div>
+                                </div>
+                                <div className="mt-1 flex justify-between text-xs" style={{color: 'var(--color-text-muted)'}}>
+                                    <span>{lot.completed_phases}/{lot.total_phases} phases</span>
+                                    <span>{pct(lot.progress_pct)}</span>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Lot detail panel */}
+                    {lotDetail && (
+                        <div className="p-4 rounded" style={{backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-light)'}}>
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 className="text-lg font-semibold">{lotDetail.label || `Lot #${lotDetail.lot_number}`}</h3>
+                                    <p className="text-sm" style={{color: 'var(--color-text-muted)'}}>
+                                        {lotDetail.lot_type_name} — {pct(lotDetail.progress_pct)} complete
+                                        {lotDetail.started_day && ` — Started day ${lotDetail.started_day}`}
+                                        {lotDetail.completed_day && ` — Finished day ${lotDetail.completed_day}`}
+                                    </p>
+                                </div>
+                                <button onClick={() => { setSelectedLot(null); setLotDetail(null); }}
+                                    className="text-sm px-2 py-1 rounded"
+                                    style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-muted)'}}>
+                                    Close
+                                </button>
+                            </div>
+
+                            {/* Phase bars */}
+                            <div className="space-y-3 mb-6">
+                                {(lotDetail.phases || []).map(p => (
+                                    <div key={p.lot_phase_id}>
+                                        <div className="flex justify-between text-sm mb-1">
+                                            <span>
+                                                <span className="phase-status" style={{backgroundColor: PHASE_COLORS[p.status]}} />
+                                                {p.phase_name}
+                                                <span className="text-xs ml-2" style={{color: 'var(--color-text-muted)'}}>
+                                                    ({p.status}{p.assigned_crew_name ? ` — ${p.assigned_crew_name}` : ''})
+                                                </span>
+                                            </span>
+                                            <span style={{color: 'var(--color-text-muted)'}}>
+                                                {p.hours_completed}/{p.hours_needed}h
+                                            </span>
+                                        </div>
+                                        <div className="h-2 rounded-full overflow-hidden" style={{backgroundColor: 'var(--color-bg-hover)'}}>
+                                            <div className="h-full progress-bar rounded-full"
+                                                style={{
+                                                    width: `${(p.hours_completed / p.hours_needed) * 100}%`,
+                                                    backgroundColor: PHASE_COLORS[p.status],
+                                                }} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Labor log */}
+                            {lotDetail.labor_log && lotDetail.labor_log.length > 0 && (
+                                <div>
+                                    <h4 className="text-sm font-semibold mb-2">Labor Log</h4>
+                                    <div className="max-h-48 overflow-y-auto text-xs space-y-1" style={{color: 'var(--color-text-muted)'}}>
+                                        {lotDetail.labor_log.map((l, i) => (
+                                            <div key={i}>Day {l.sim_day}: {l.crew_name} — {l.hours_worked}h on {l.phase_name} ({fmtD(l.labor_cost)})</div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // =====================================================================
+        // SHARED COMPONENTS
+        // =====================================================================
+        function StatCard({ label, value, color }) {
+            return (
+                <div className="p-4 rounded" style={{backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-light)'}}>
+                    <div className="text-xs mb-1" style={{color: 'var(--color-text-muted)'}}>{label}</div>
+                    <div className="text-xl font-bold" style={{color: color || 'var(--color-text)'}}>{value}</div>
+                </div>
+            );
+        }
+
+        function MiniStat({ label, value }) {
+            return (
+                <div>
+                    <div className="text-xs" style={{color: 'var(--color-text-muted)'}}>{label}</div>
+                    <div className="text-lg font-semibold">{value}</div>
+                </div>
+            );
+        }
+
+        function ProgressSummary({ devStatus }) {
+            if (!devStatus) return null;
+            const lots = devStatus.lots || {};
+            const phases = devStatus.phases || {};
+            const totalLots = Object.values(lots).reduce((a, b) => a + b, 0);
+            const doneLots = lots.completed || 0;
+            const totalPhases = Object.values(phases).reduce((a, b) => a + b, 0);
+            const donePhases = phases.completed || 0;
+
+            return (
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 rounded" style={{backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-light)'}}>
+                        <div className="flex justify-between text-sm mb-2">
+                            <span>Lots</span>
+                            <span>{doneLots}/{totalLots} complete</span>
+                        </div>
+                        <div className="h-3 rounded-full overflow-hidden" style={{backgroundColor: 'var(--color-bg-tertiary)'}}>
+                            <div className="h-full progress-bar rounded-full" style={{
+                                width: totalLots > 0 ? `${(doneLots/totalLots)*100}%` : '0%',
+                                backgroundColor: 'var(--color-success)',
+                            }} />
+                        </div>
+                        <div className="mt-2 flex space-x-4 text-xs" style={{color: 'var(--color-text-muted)'}}>
+                            {Object.entries(lots).map(([k, v]) => <span key={k}>{k}: {v}</span>)}
+                        </div>
+                    </div>
+                    <div className="p-4 rounded" style={{backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-light)'}}>
+                        <div className="flex justify-between text-sm mb-2">
+                            <span>Phases</span>
+                            <span>{donePhases}/{totalPhases} complete</span>
+                        </div>
+                        <div className="h-3 rounded-full overflow-hidden" style={{backgroundColor: 'var(--color-bg-tertiary)'}}>
+                            <div className="h-full progress-bar rounded-full" style={{
+                                width: totalPhases > 0 ? `${(donePhases/totalPhases)*100}%` : '0%',
+                                backgroundColor: 'var(--color-primary)',
+                            }} />
+                        </div>
+                        <div className="mt-2 flex space-x-4 text-xs" style={{color: 'var(--color-text-muted)'}}>
+                            {Object.entries(phases).map(([k, v]) => (
+                                <span key={k}>
+                                    <span className="phase-status" style={{backgroundColor: PHASE_COLORS[k]}} />
+                                    {k}: {v}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // =====================================================================
+        // RENDER
+        // =====================================================================
+        ReactDOM.render(<SimApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>

@@ -23,7 +23,13 @@ Date: 2026-01-19
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 import sqlite3
+import sys
+from datetime import datetime
 from pathlib import Path
+
+# Add backend to path so services module is importable
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from services.accounting import create_business_event
 
 
 projects_bp = Blueprint('projects', __name__)
@@ -125,6 +131,35 @@ def create_project():
         ))
 
         project_id = cursor.lastrowid
+
+        # --- Accounting integration ---
+        # When a project has an acquisition cost, auto-create an acquisition event
+        acquisition_cost = data.get('acquisition_cost')
+        if acquisition_cost and float(acquisition_cost) > 0:
+            try:
+                acq_metadata = {
+                    'project_id': project_id,
+                    'cost': float(acquisition_cost),
+                    'source': data.get('acquisition_source', 'unknown'),
+                }
+                if data.get('acquisition_date'):
+                    event_date = data['acquisition_date']
+                else:
+                    event_date = datetime.now().strftime('%Y-%m-%d')
+
+                create_business_event(
+                    user_id=int(current_user.id),
+                    event_type='project_acquisition',
+                    event_date=event_date,
+                    metadata=acq_metadata,
+                    entity_type='project',
+                    entity_id=project_id,
+                    auto_post=True,
+                    conn=conn,
+                )
+            except Exception as acct_err:
+                print(f"[PROJECTS] Accounting event failed (non-blocking): {acct_err}")
+
         conn.commit()
 
         # Fetch the created project
