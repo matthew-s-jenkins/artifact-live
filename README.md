@@ -346,20 +346,23 @@ Monthly hosting/support fee from clients. Recurring revenue from the platform.
 
 ## 🔗 Related Projects
 
-### Perfect Books - Personal Finance Management
+Part of a connected platform built on shared accounting and reporting foundations:
 
-Artifact Live shares its **double-entry accounting foundation** with [Perfect Books](https://github.com/matthew-s-jenkins/perfect-books).
+| Project | Status | Description |
+|---------|--------|-------------|
+| [Perfect Books](https://github.com/matthew-s-jenkins/perfect-books) | Public | Personal double-entry accounting |
+| [Digital Harvest](https://github.com/matthew-s-jenkins/digital-harvest-sim) | Public | Business simulation & analytics platform |
+| **Canopy** | Private (built at Harris Teeter) | Executive sales intelligence dashboard |
+| **Cadence** | Private (built at Harris Teeter) | Close management & account ownership platform |
 
-**Shared Principles:**
+Artifact Live is the **operations branch** of the platform — inventory, projects, labor, and material tracking. It reads from and writes to the same double-entry ledger that powers [Perfect Books](https://github.com/matthew-s-jenkins/perfect-books), and the patterns were stress-tested at scale in [Digital Harvest](https://github.com/matthew-s-jenkins/digital-harvest-sim) before being applied to real business operations. Canopy and Cadence bring reporting and close management to enterprise retail using the same architecture.
+
+**Shared principles:**
 - ✅ Double-entry accounting (Assets = Liabilities + Equity)
 - ✅ Immutable financial ledger with transaction UUIDs
 - ✅ SQLite database with full portability
 - ✅ Flask REST API architecture
 - ✅ React + Tailwind CSS frontend
-
-### Digital Harvest - Business Simulation
-
-[Digital Harvest](https://github.com/matthew-s-jenkins/digital-harvest-sim) stress-tested these patterns at scale before Artifact Live applied them to real operations.
 
 ---
 
