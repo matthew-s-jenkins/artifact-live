@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Owner Dashboard - Artifact Live</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="themes.js"></script>
+    <style>
+        :root {
+            --color-bg: #111827; --color-bg-secondary: #1f2937; --color-bg-tertiary: #374151;
+            --color-bg-hover: #4b5563; --color-text: #f9fafb; --color-text-secondary: #d1d5db;
+            --color-text-muted: #9ca3af; --color-border: #4b5563; --color-border-light: #374151;
+            --color-primary: #06b6d4; --color-primary-hover: #0891b2;
+            --color-success: #10b981; --color-danger: #ef4444; --color-warning: #f59e0b;
+        }
+        .progress-bar { transition: width 0.3s ease; }
+    </style>
+</head>
+<body style="background-color: var(--color-bg); color: var(--color-text);">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const API = '';
+        const fmt = (v) => v == null ? '$0' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+        const fmtD = (v) => v == null ? '$0.00' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
+        const pct = (v) => `${(v || 0).toFixed(1)}%`;
+
+        function OwnerDashboardApp() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [kpis, setKpis] = useState(null);
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+
+            const devId = localStorage.getItem('sim_dev_id');
+
+            useEffect(() => {
+                fetch(`${API}/api/check_auth`, { credentials: 'include' })
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(d => { setUser(d); setLoading(false); })
+                    .catch(() => { window.location.href = '/login'; });
+            }, []);
+
+            useEffect(() => {
+                if (!devId) return;
+                fetch(`${API}/api/sim/developments/${devId}/kpis`, { credentials: 'include' })
+                    .then(r => r.json()).then(d => setKpis(d)).catch(() => {});
+            }, [devId]);
+
+            // Budget vs Actual chart
+            useEffect(() => {
+                if (!kpis || !chartRef.current) return;
+                if (chartInstance.current) chartInstance.current.destroy();
+
+                const fin = kpis.financials;
+                chartInstance.current = new Chart(chartRef.current, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Budget', 'Spent', 'Labor', 'Materials', 'Remaining'],
+                        datasets: [{
+                            data: [
+                                kpis.development.budget,
+                                fin.total_spend,
+                                fin.labor_cost,
+                                fin.materials_cost,
+                                fin.budget_remaining,
+                            ],
+                            backgroundColor: [
+                                '#6b7280', '#f59e0b', '#06b6d4', '#8b5cf6',
+                                fin.budget_remaining >= 0 ? '#10b981' : '#ef4444',
+                            ],
+                            borderRadius: 4,
+                        }],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => fmt(ctx.raw),
+                                },
+                            },
+                        },
+                        scales: {
+                            x: { ticks: { color: '#9ca3af' }, grid: { display: false } },
+                            y: {
+                                ticks: {
+                                    color: '#9ca3af',
+                                    callback: (v) => fmt(v),
+                                },
+                                grid: { color: '#374151' },
+                            },
+                        },
+                    },
+                });
+            }, [kpis]);
+
+            if (loading) return <div className="flex items-center justify-center min-h-screen"><p>Loading...</p></div>;
+            if (!devId) return <div className="p-8"><p>No active simulation. <a href="/simulation" className="underline" style={{color:'var(--color-primary)'}}>Go to Simulation</a></p></div>;
+            if (!kpis) return <div className="p-8"><p>Loading KPIs...</p></div>;
+
+            const comp = kpis.completion;
+            const fin = kpis.financials;
+            const vel = kpis.velocity;
+
+            return (
+                <div className="min-h-screen">
+                    <nav className="px-4 py-3 shadow-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                        <div className="max-w-7xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center space-x-6">
+                                <a href="/simulation" className="text-xl font-bold" style={{color: 'var(--color-primary)'}}>Artifact Live</a>
+                                <span className="text-sm font-medium">Owner Dashboard</span>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <a href="/simulation" className="text-xs px-2 py-1 rounded" style={{backgroundColor:'var(--color-bg-tertiary)',color:'var(--color-text-muted)'}}>Sim</a>
+                                <a href="/crew-lead" className="text-xs px-2 py-1 rounded" style={{backgroundColor:'var(--color-bg-tertiary)',color:'var(--color-text-muted)'}}>Crew Lead</a>
+                                <a href="/materials-buyer" className="text-xs px-2 py-1 rounded" style={{backgroundColor:'var(--color-bg-tertiary)',color:'var(--color-text-muted)'}}>Materials</a>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <main className="max-w-7xl mx-auto px-4 py-6">
+                        <h2 className="text-2xl font-bold mb-1" style={{color:'var(--color-primary)'}}>
+                            {kpis.development.name}
+                        </h2>
+                        <p className="text-sm mb-6" style={{color:'var(--color-text-muted)'}}>
+                            Day {kpis.development.current_day}
+                            {kpis.development.status === 'completed' && <span style={{color:'var(--color-success)'}}> — COMPLETE</span>}
+                        </p>
+
+                        {/* KPI cards — top row */}
+                        <div className="grid grid-cols-5 gap-4 mb-6">
+                            <div className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>% Complete</div>
+                                <div className="text-2xl font-bold" style={{color:'var(--color-primary)'}}>{pct(comp.pct_complete)}</div>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>
+                                    {comp.hours_done.toLocaleString()} / {comp.hours_total.toLocaleString()} hrs
+                                </div>
+                            </div>
+                            <div className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Lots Done</div>
+                                <div className="text-2xl font-bold" style={{color:'var(--color-success)'}}>
+                                    {comp.lots_completed}/{comp.lots_total}
+                                </div>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>
+                                    {comp.lots_in_progress} in progress
+                                </div>
+                            </div>
+                            <div className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Cost per Unit</div>
+                                <div className="text-2xl font-bold">{fmt(fin.cost_per_unit)}</div>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>
+                                    {comp.lots_completed > 0 ? `${comp.lots_completed} units sold` : 'No units complete yet'}
+                                </div>
+                            </div>
+                            <div className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Daily Burn Rate</div>
+                                <div className="text-2xl font-bold" style={{color:'var(--color-warning)'}}>{fmt(vel.daily_burn_rate)}</div>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>7-day average</div>
+                            </div>
+                            <div className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Projected Finish</div>
+                                <div className="text-2xl font-bold">
+                                    {vel.estimated_total_days > 0 ? `Day ${vel.estimated_total_days}` : '-'}
+                                </div>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>
+                                    {vel.days_remaining > 0 ? `${vel.days_remaining} days left` : ''}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Overall progress bar */}
+                        <div className="mb-8">
+                            <div className="flex justify-between text-sm mb-2">
+                                <span>Overall Progress</span>
+                                <span>{pct(comp.pct_complete)} — {comp.phases_completed}/{comp.phases_total} phases</span>
+                            </div>
+                            <div className="h-4 rounded-full overflow-hidden" style={{backgroundColor:'var(--color-bg-tertiary)'}}>
+                                <div className="h-full progress-bar rounded-full" style={{
+                                    width: `${Math.min(comp.pct_complete, 100)}%`,
+                                    backgroundColor: 'var(--color-primary)',
+                                }} />
+                            </div>
+                        </div>
+
+                        {/* Budget section */}
+                        <div className="grid grid-cols-2 gap-6 mb-8">
+                            <div>
+                                <h3 className="text-lg font-semibold mb-4">Budget vs Actual</h3>
+                                <div style={{height: '300px'}}>
+                                    <canvas ref={chartRef}></canvas>
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-semibold mb-4">Financial Summary</h3>
+                                <div className="space-y-4">
+                                    <div className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                        <div className="flex justify-between mb-2">
+                                            <span className="text-sm">Budget</span>
+                                            <span className="font-medium">{fmt(kpis.development.budget)}</span>
+                                        </div>
+                                        <div className="flex justify-between mb-2">
+                                            <span className="text-sm">Total Spent</span>
+                                            <span className="font-medium" style={{color:'var(--color-warning)'}}>{fmt(fin.total_spend)}</span>
+                                        </div>
+                                        <div className="flex justify-between mb-2 pl-4" style={{color:'var(--color-text-muted)'}}>
+                                            <span className="text-sm">Labor</span>
+                                            <span>{fmt(fin.labor_cost)}</span>
+                                        </div>
+                                        <div className="flex justify-between mb-2 pl-4" style={{color:'var(--color-text-muted)'}}>
+                                            <span className="text-sm">Materials</span>
+                                            <span>{fmt(fin.materials_cost)}</span>
+                                        </div>
+                                        <div className="border-t pt-2 mt-2 flex justify-between" style={{borderColor:'var(--color-border-light)'}}>
+                                            <span className="text-sm font-medium">Remaining</span>
+                                            <span className="font-bold" style={{color: fin.budget_remaining >= 0 ? 'var(--color-success)' : 'var(--color-danger)'}}>
+                                                {fmt(fin.budget_remaining)}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Budget usage bar */}
+                                    <div>
+                                        <div className="flex justify-between text-xs mb-1" style={{color:'var(--color-text-muted)'}}>
+                                            <span>Budget Used</span>
+                                            <span>{pct(fin.budget_pct_used)}</span>
+                                        </div>
+                                        <div className="h-3 rounded-full overflow-hidden" style={{backgroundColor:'var(--color-bg-tertiary)'}}>
+                                            <div className="h-full progress-bar rounded-full" style={{
+                                                width: `${Math.min(fin.budget_pct_used, 100)}%`,
+                                                backgroundColor: fin.budget_pct_used > 90 ? 'var(--color-danger)' :
+                                                                 fin.budget_pct_used > 70 ? 'var(--color-warning)' : 'var(--color-success)',
+                                            }} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<OwnerDashboardApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>

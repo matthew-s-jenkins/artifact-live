@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crew Lead Dashboard - Artifact Live</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👷</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="themes.js"></script>
+    <style>
+        :root {
+            --color-bg: #111827; --color-bg-secondary: #1f2937; --color-bg-tertiary: #374151;
+            --color-bg-hover: #4b5563; --color-text: #f9fafb; --color-text-secondary: #d1d5db;
+            --color-text-muted: #9ca3af; --color-border: #4b5563; --color-border-light: #374151;
+            --color-primary: #06b6d4; --color-primary-hover: #0891b2;
+            --color-success: #10b981; --color-danger: #ef4444; --color-warning: #f59e0b;
+        }
+        .progress-bar { transition: width 0.3s ease; }
+    </style>
+</head>
+<body style="background-color: var(--color-bg); color: var(--color-text);">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API = '';
+        const fmt = (v) => v == null ? '$0' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+        const fmtD = (v) => v == null ? '$0.00' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
+        const pct = (v) => `${(v || 0).toFixed(1)}%`;
+
+        function CrewLeadApp() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [crews, setCrews] = useState([]);
+            const [selectedCrew, setSelectedCrew] = useState(null);
+            const [crewDetail, setCrewDetail] = useState(null);
+
+            const devId = localStorage.getItem('sim_dev_id');
+
+            useEffect(() => {
+                fetch(`${API}/api/check_auth`, { credentials: 'include' })
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(d => { setUser(d); setLoading(false); })
+                    .catch(() => { window.location.href = '/login'; });
+            }, []);
+
+            useEffect(() => {
+                if (!devId) return;
+                fetch(`${API}/api/sim/developments/${devId}/crews`, { credentials: 'include' })
+                    .then(r => r.json())
+                    .then(d => setCrews(d.crews || []))
+                    .catch(() => {});
+            }, [devId]);
+
+            const loadCrewDetail = (crewId) => {
+                setSelectedCrew(crewId);
+                fetch(`${API}/api/sim/developments/${devId}/crews/${crewId}`, { credentials: 'include' })
+                    .then(r => r.json())
+                    .then(d => setCrewDetail(d))
+                    .catch(() => {});
+            };
+
+            if (loading) return <div className="flex items-center justify-center min-h-screen"><p>Loading...</p></div>;
+            if (!devId) return <div className="p-8"><p>No active simulation. <a href="/simulation" className="underline" style={{color:'var(--color-primary)'}}>Go to Simulation</a></p></div>;
+
+            return (
+                <div className="min-h-screen">
+                    <nav className="px-4 py-3 shadow-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                        <div className="max-w-7xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center space-x-6">
+                                <a href="/simulation" className="text-xl font-bold" style={{color: 'var(--color-primary)'}}>Artifact Live</a>
+                                <span className="text-sm font-medium">Crew Lead Dashboard</span>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <a href="/simulation" className="text-xs px-2 py-1 rounded" style={{backgroundColor:'var(--color-bg-tertiary)',color:'var(--color-text-muted)'}}>Sim</a>
+                                <a href="/materials-buyer" className="text-xs px-2 py-1 rounded" style={{backgroundColor:'var(--color-bg-tertiary)',color:'var(--color-text-muted)'}}>Materials</a>
+                                <a href="/owner-dashboard" className="text-xs px-2 py-1 rounded" style={{backgroundColor:'var(--color-bg-tertiary)',color:'var(--color-text-muted)'}}>Owner</a>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <main className="max-w-7xl mx-auto px-4 py-6">
+                        <div className="grid grid-cols-3 gap-6">
+                            {/* Crew selector */}
+                            <div>
+                                <h2 className="text-lg font-semibold mb-4">My Crews</h2>
+                                <div className="space-y-2">
+                                    {crews.map(c => (
+                                        <button key={c.crew_id} onClick={() => loadCrewDetail(c.crew_id)}
+                                            className="w-full p-3 rounded text-left text-sm"
+                                            style={{
+                                                backgroundColor: selectedCrew === c.crew_id ? 'var(--color-bg-tertiary)' : 'var(--color-bg-secondary)',
+                                                border: `1px solid ${selectedCrew === c.crew_id ? 'var(--color-primary)' : 'var(--color-border-light)'}`,
+                                            }}>
+                                            <div className="font-medium">{c.name}</div>
+                                            <div className="flex justify-between mt-1" style={{color:'var(--color-text-muted)'}}>
+                                                <span>{c.crew_type}</span>
+                                                <span style={{color: c.utilization_pct > 80 ? 'var(--color-success)' : c.utilization_pct > 50 ? 'var(--color-warning)' : 'var(--color-danger)'}}>
+                                                    {pct(c.utilization_pct)}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Crew detail */}
+                            <div className="col-span-2">
+                                {!crewDetail ? (
+                                    <div className="p-8 text-center" style={{color:'var(--color-text-muted)'}}>
+                                        Select a crew to see their dashboard
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <h2 className="text-xl font-bold mb-1" style={{color:'var(--color-primary)'}}>{crewDetail.name}</h2>
+                                        <p className="text-sm mb-6" style={{color:'var(--color-text-muted)'}}>
+                                            {crewDetail.crew_type} — {fmtD(crewDetail.hourly_rate)}/hr
+                                        </p>
+
+                                        {/* Stats */}
+                                        <div className="grid grid-cols-4 gap-4 mb-6">
+                                            <div className="p-3 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Week Hours</div>
+                                                <div className="text-lg font-bold">{crewDetail.week_hours}h</div>
+                                            </div>
+                                            <div className="p-3 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Total Hours</div>
+                                                <div className="text-lg font-bold">{Math.round(crewDetail.total_hours)}h</div>
+                                            </div>
+                                            <div className="p-3 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Total Cost</div>
+                                                <div className="text-lg font-bold">{fmt(crewDetail.total_cost)}</div>
+                                            </div>
+                                            <div className="p-3 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Utilization</div>
+                                                <div className="text-lg font-bold" style={{color: crewDetail.utilization_pct > 80 ? 'var(--color-success)' : 'var(--color-warning)'}}>
+                                                    {pct(crewDetail.utilization_pct)}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Current assignment */}
+                                        <h3 className="text-sm font-semibold mb-2">Current Assignment</h3>
+                                        {crewDetail.current_assignment ? (
+                                            <div className="p-4 rounded mb-6" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <span className="font-medium">{crewDetail.current_assignment.lot_label}</span>
+                                                        <span className="mx-2" style={{color:'var(--color-text-muted)'}}>—</span>
+                                                        <span style={{color:'var(--color-primary)'}}>{crewDetail.current_assignment.phase_name}</span>
+                                                    </div>
+                                                    <span className="text-sm" style={{color:'var(--color-text-muted)'}}>
+                                                        {crewDetail.current_assignment.hours_completed}/{crewDetail.current_assignment.hours_needed}h
+                                                    </span>
+                                                </div>
+                                                <div className="mt-2 h-2 rounded-full overflow-hidden" style={{backgroundColor:'var(--color-bg-hover)'}}>
+                                                    <div className="h-full progress-bar rounded-full" style={{
+                                                        width: `${(crewDetail.current_assignment.hours_completed / crewDetail.current_assignment.hours_needed) * 100}%`,
+                                                        backgroundColor: 'var(--color-warning)'
+                                                    }} />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="p-4 rounded mb-6 text-sm" style={{backgroundColor:'var(--color-bg-secondary)',color:'var(--color-text-muted)'}}>
+                                                No active assignment — waiting for work
+                                            </div>
+                                        )}
+
+                                        {/* Materials needed */}
+                                        {crewDetail.materials_needed && crewDetail.materials_needed.length > 0 && (
+                                            <div className="mb-6">
+                                                <h3 className="text-sm font-semibold mb-2">Materials Needed</h3>
+                                                <div className="rounded overflow-hidden" style={{border:'1px solid var(--color-border-light)'}}>
+                                                    <table className="w-full text-sm">
+                                                        <thead>
+                                                            <tr style={{backgroundColor:'var(--color-bg-secondary)'}}>
+                                                                <th className="text-left px-3 py-2">Material</th>
+                                                                <th className="text-right px-3 py-2">Required</th>
+                                                                <th className="text-right px-3 py-2">On Hand</th>
+                                                                <th className="text-right px-3 py-2">Status</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {crewDetail.materials_needed.map((m, i) => (
+                                                                <tr key={i} style={{borderTop:'1px solid var(--color-border-light)'}}>
+                                                                    <td className="px-3 py-2">{m.name}</td>
+                                                                    <td className="px-3 py-2 text-right">{m.quantity} {m.unit}</td>
+                                                                    <td className="px-3 py-2 text-right">{Math.round(m.on_hand)}</td>
+                                                                    <td className="px-3 py-2 text-right">
+                                                                        <span style={{color: m.on_hand >= m.quantity ? 'var(--color-success)' : 'var(--color-danger)'}}>
+                                                                            {m.on_hand >= m.quantity ? 'OK' : 'SHORT'}
+                                                                        </span>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Work queue */}
+                                        <h3 className="text-sm font-semibold mb-2">Upcoming Work Queue</h3>
+                                        <div className="rounded overflow-hidden" style={{border:'1px solid var(--color-border-light)'}}>
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr style={{backgroundColor:'var(--color-bg-secondary)'}}>
+                                                        <th className="text-left px-3 py-2">Lot</th>
+                                                        <th className="text-left px-3 py-2">Phase</th>
+                                                        <th className="text-right px-3 py-2">Hours</th>
+                                                        <th className="text-right px-3 py-2">Progress</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {(crewDetail.work_queue || []).map((w, i) => (
+                                                        <tr key={i} style={{borderTop:'1px solid var(--color-border-light)'}}>
+                                                            <td className="px-3 py-2 font-medium">{w.lot_label}</td>
+                                                            <td className="px-3 py-2">{w.phase_name}</td>
+                                                            <td className="px-3 py-2 text-right">{w.hours_needed}h</td>
+                                                            <td className="px-3 py-2 text-right">
+                                                                <div className="w-20 ml-auto h-1.5 rounded-full overflow-hidden" style={{backgroundColor:'var(--color-bg-hover)'}}>
+                                                                    <div className="h-full rounded-full" style={{
+                                                                        width: `${(w.hours_completed/w.hours_needed)*100}%`,
+                                                                        backgroundColor: 'var(--color-primary)'
+                                                                    }} />
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                    {(!crewDetail.work_queue || crewDetail.work_queue.length === 0) && (
+                                                        <tr><td colSpan="4" className="px-3 py-4 text-center" style={{color:'var(--color-text-muted)'}}>No pending work</td></tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<CrewLeadApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>

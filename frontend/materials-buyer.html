@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Materials Buyer - Artifact Live</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="themes.js"></script>
+    <style>
+        :root {
+            --color-bg: #111827; --color-bg-secondary: #1f2937; --color-bg-tertiary: #374151;
+            --color-bg-hover: #4b5563; --color-text: #f9fafb; --color-text-secondary: #d1d5db;
+            --color-text-muted: #9ca3af; --color-border: #4b5563; --color-border-light: #374151;
+            --color-primary: #06b6d4; --color-primary-hover: #0891b2;
+            --color-success: #10b981; --color-danger: #ef4444; --color-warning: #f59e0b;
+        }
+    </style>
+</head>
+<body style="background-color: var(--color-bg); color: var(--color-text);">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API = '';
+        const fmt = (v) => v == null ? '$0' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+        const fmtD = (v) => v == null ? '$0.00' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
+
+        function MaterialsBuyerApp() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [materials, setMaterials] = useState(null);
+            const [pos, setPos] = useState([]);
+            const [poFilter, setPoFilter] = useState('');
+            const [tab, setTab] = useState('inventory');
+
+            const devId = localStorage.getItem('sim_dev_id');
+
+            useEffect(() => {
+                fetch(`${API}/api/check_auth`, { credentials: 'include' })
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(d => { setUser(d); setLoading(false); })
+                    .catch(() => { window.location.href = '/login'; });
+            }, []);
+
+            useEffect(() => {
+                if (!devId) return;
+                fetch(`${API}/api/sim/developments/${devId}/materials`, { credentials: 'include' })
+                    .then(r => r.json()).then(d => setMaterials(d)).catch(() => {});
+                fetch(`${API}/api/sim/developments/${devId}/purchase-orders`, { credentials: 'include' })
+                    .then(r => r.json()).then(d => setPos(d.purchase_orders || [])).catch(() => {});
+            }, [devId]);
+
+            if (loading) return <div className="flex items-center justify-center min-h-screen"><p>Loading...</p></div>;
+            if (!devId) return <div className="p-8"><p>No active simulation. <a href="/simulation" className="underline" style={{color:'var(--color-primary)'}}>Go to Simulation</a></p></div>;
+
+            const inventory = materials?.inventory || [];
+            const poSummary = materials?.po_summary || {};
+            const filteredPos = poFilter ? pos.filter(p => p.status === poFilter) : pos;
+
+            return (
+                <div className="min-h-screen">
+                    <nav className="px-4 py-3 shadow-lg" style={{backgroundColor: 'var(--color-bg-secondary)'}}>
+                        <div className="max-w-7xl mx-auto flex justify-between items-center">
+                            <div className="flex items-center space-x-6">
+                                <a href="/simulation" className="text-xl font-bold" style={{color: 'var(--color-primary)'}}>Artifact Live</a>
+                                <span className="text-sm font-medium">Materials Buyer</span>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                                <a href="/simulation" className="text-xs px-2 py-1 rounded" style={{backgroundColor:'var(--color-bg-tertiary)',color:'var(--color-text-muted)'}}>Sim</a>
+                                <a href="/crew-lead" className="text-xs px-2 py-1 rounded" style={{backgroundColor:'var(--color-bg-tertiary)',color:'var(--color-text-muted)'}}>Crew Lead</a>
+                                <a href="/owner-dashboard" className="text-xs px-2 py-1 rounded" style={{backgroundColor:'var(--color-bg-tertiary)',color:'var(--color-text-muted)'}}>Owner</a>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <main className="max-w-7xl mx-auto px-4 py-6">
+                        {/* PO summary cards */}
+                        <div className="grid grid-cols-4 gap-4 mb-6">
+                            <div className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Ordered</div>
+                                <div className="text-xl font-bold" style={{color:'var(--color-warning)'}}>
+                                    {poSummary.ordered?.count || 0}
+                                </div>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>{fmt(poSummary.ordered?.total || 0)}</div>
+                            </div>
+                            <div className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Delivered</div>
+                                <div className="text-xl font-bold" style={{color:'var(--color-primary)'}}>
+                                    {poSummary.delivered?.count || 0}
+                                </div>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>{fmt(poSummary.delivered?.total || 0)}</div>
+                            </div>
+                            <div className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Paid</div>
+                                <div className="text-xl font-bold" style={{color:'var(--color-success)'}}>
+                                    {poSummary.paid?.count || 0}
+                                </div>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>{fmt(poSummary.paid?.total || 0)}</div>
+                            </div>
+                            <div className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>Total PO Value</div>
+                                <div className="text-xl font-bold">
+                                    {fmt(Object.values(poSummary).reduce((a, b) => a + (b.total || 0), 0))}
+                                </div>
+                                <div className="text-xs" style={{color:'var(--color-text-muted)'}}>
+                                    {Object.values(poSummary).reduce((a, b) => a + (b.count || 0), 0)} POs
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Tab selector */}
+                        <div className="flex space-x-6 border-b mb-6" style={{borderColor:'var(--color-border-light)'}}>
+                            {['inventory', 'purchase-orders'].map(t => (
+                                <button key={t} onClick={() => setTab(t)}
+                                    className={`pb-2 text-sm font-medium ${tab === t ? 'border-b-2' : ''}`}
+                                    style={{
+                                        color: tab === t ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                        borderColor: tab === t ? 'var(--color-primary)' : 'transparent',
+                                    }}>
+                                    {t === 'inventory' ? 'Inventory Levels' : 'Purchase Orders'}
+                                </button>
+                            ))}
+                        </div>
+
+                        {tab === 'inventory' && (
+                            <div className="rounded overflow-hidden" style={{border:'1px solid var(--color-border-light)'}}>
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr style={{backgroundColor:'var(--color-bg-secondary)'}}>
+                                            <th className="text-left px-4 py-2">Material</th>
+                                            <th className="text-left px-4 py-2">Unit</th>
+                                            <th className="text-right px-4 py-2">Unit Cost</th>
+                                            <th className="text-right px-4 py-2">On Hand</th>
+                                            <th className="text-right px-4 py-2">On Order</th>
+                                            <th className="text-right px-4 py-2">Lead Time</th>
+                                            <th className="text-left px-4 py-2">Vendor</th>
+                                            <th className="text-right px-4 py-2">Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {inventory.map(m => {
+                                            const lowStock = m.quantity_on_hand <= 0 && m.quantity_on_order <= 0;
+                                            return (
+                                                <tr key={m.material_id} style={{
+                                                    borderTop:'1px solid var(--color-border-light)',
+                                                    backgroundColor: lowStock ? 'rgba(239,68,68,0.1)' : undefined,
+                                                }}>
+                                                    <td className="px-4 py-2 font-medium">
+                                                        {m.name}
+                                                        {lowStock && <span className="ml-2 text-xs px-1 rounded" style={{backgroundColor:'var(--color-danger)',color:'#fff'}}>LOW</span>}
+                                                    </td>
+                                                    <td className="px-4 py-2" style={{color:'var(--color-text-muted)'}}>{m.unit}</td>
+                                                    <td className="px-4 py-2 text-right">{fmtD(m.unit_cost)}</td>
+                                                    <td className="px-4 py-2 text-right font-medium">{Math.round(m.quantity_on_hand)}</td>
+                                                    <td className="px-4 py-2 text-right" style={{color:'var(--color-warning)'}}>
+                                                        {m.quantity_on_order > 0 ? Math.round(m.quantity_on_order) : '-'}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right">{m.lead_time_days}d</td>
+                                                    <td className="px-4 py-2" style={{color:'var(--color-text-muted)'}}>{m.vendor_name || '-'}</td>
+                                                    <td className="px-4 py-2 text-right">{fmtD(m.quantity_on_hand * m.unit_cost)}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                        {inventory.length === 0 && (
+                                            <tr><td colSpan="8" className="px-4 py-8 text-center" style={{color:'var(--color-text-muted)'}}>
+                                                No materials configured (MVP preset is labor-only)
+                                            </td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {tab === 'purchase-orders' && (
+                            <div>
+                                <div className="flex space-x-2 mb-4">
+                                    {['', 'ordered', 'delivered', 'paid'].map(f => (
+                                        <button key={f} onClick={() => setPoFilter(f)}
+                                            className="px-3 py-1 rounded text-xs font-medium"
+                                            style={{
+                                                backgroundColor: poFilter === f ? 'var(--color-primary)' : 'var(--color-bg-tertiary)',
+                                                color: poFilter === f ? '#fff' : 'var(--color-text-muted)',
+                                            }}>
+                                            {f || 'All'} ({f ? (pos.filter(p => p.status === f).length) : pos.length})
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="space-y-3">
+                                    {filteredPos.map(po => (
+                                        <div key={po.po_id} className="p-4 rounded" style={{backgroundColor:'var(--color-bg-secondary)',border:'1px solid var(--color-border-light)'}}>
+                                            <div className="flex justify-between items-center mb-2">
+                                                <div>
+                                                    <span className="font-medium">PO #{po.po_id}</span>
+                                                    <span className="mx-2" style={{color:'var(--color-text-muted)'}}>—</span>
+                                                    <span>{po.vendor_name || 'Unknown'}</span>
+                                                </div>
+                                                <div className="flex items-center space-x-3">
+                                                    <span className="text-sm font-medium">{fmtD(po.total_cost)}</span>
+                                                    <span className="text-xs px-2 py-0.5 rounded" style={{
+                                                        backgroundColor: po.status === 'ordered' ? 'var(--color-warning)' :
+                                                                        po.status === 'delivered' ? 'var(--color-primary)' : 'var(--color-success)',
+                                                        color: po.status === 'ordered' ? '#000' : '#fff',
+                                                    }}>{po.status}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-xs" style={{color:'var(--color-text-muted)'}}>
+                                                Ordered: Day {po.order_day} | Delivery: Day {po.delivery_day}
+                                                {po.payment_due_day && ` | Payment Due: Day ${po.payment_due_day}`}
+                                            </div>
+                                            {po.lines && po.lines.length > 0 && (
+                                                <div className="mt-2 text-xs space-y-1" style={{color:'var(--color-text-muted)'}}>
+                                                    {po.lines.map((l, i) => (
+                                                        <div key={i}>
+                                                            {l.material_name}: {Math.round(l.quantity)} {l.unit} @ {fmtD(l.unit_cost)} = {fmtD(l.line_total)}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {filteredPos.length === 0 && (
+                                        <div className="p-8 text-center" style={{color:'var(--color-text-muted)'}}>
+                                            {pos.length === 0 ? 'No purchase orders yet (MVP preset has no materials)' : 'No POs match this filter'}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<MaterialsBuyerApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>

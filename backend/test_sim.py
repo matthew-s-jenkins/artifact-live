@@ -138,10 +138,9 @@ def run_test():
     )
     dev_id = dev['development_id']
     print(f"   Development #{dev_id}: {dev['name']}")
-    print(f"   Houses: {dev['num_houses']}, Crews: {dev['num_crews']}")
-    print(f"   Phases per house: {dev['num_phases_per_house']}")
+    print(f"   Lots: {dev['total_lots']}, Crews: {dev['num_crews']}")
     print(f"   Total phases: {dev['total_phases']}")
-    assert dev['num_houses'] == 10
+    assert dev['total_lots'] == 10
     assert dev['total_phases'] == 50  # 10 houses * 5 phases
 
     # --- Start development ---

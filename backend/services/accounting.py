@@ -103,6 +103,12 @@ EVENT_TYPES = {
         'optional_meta': ['invoice_number', 'po_reference'],
         'builder': '_build_vendor_payment_entries',
     },
+    'inventory_receipt': {
+        'description': 'Materials received into inventory (PO delivery)',
+        'required_meta': ['vendor', 'items'],
+        'optional_meta': ['po_id', 'account_prefix'],
+        'builder': '_build_inventory_receipt_entries',
+    },
 }
 
 
@@ -1238,6 +1244,53 @@ def _build_vendor_payment_entries(user_id, metadata, cursor):
     ]
 
 
+def _build_inventory_receipt_entries(user_id, metadata, cursor):
+    """
+    Build ledger entries for materials received into inventory.
+
+    DR Inventory (material cost)
+    CR Accounts Payable (vendor owes)
+
+    When a PO is delivered, materials move into inventory and
+    the vendor balance increases in AP.
+    """
+    items = metadata.get('items', [])
+    if not items:
+        raise ValueError("inventory_receipt requires at least one item")
+
+    total_cost = 0.0
+    for item in items:
+        qty = item.get('quantity', 1)
+        unit_cost = item.get('unit_cost', 0)
+        total_cost += qty * unit_cost
+
+    if total_cost <= 0:
+        raise ValueError("inventory_receipt total cost must be positive")
+
+    prefix = metadata.get('account_prefix')
+    inventory_account = _resolve_account(user_id, 'INVENTORY', cursor, name_prefix=prefix)
+    ap_account = _resolve_account(user_id, 'AP', cursor, name_prefix=prefix)
+
+    vendor = metadata.get('vendor', 'Unknown')
+
+    return [
+        {
+            'account_id': inventory_account,
+            'debit': total_cost,
+            'credit': 0.0,
+            'description': f"Inventory received — {vendor}",
+            'reference_type': 'INVENTORY_RECEIPT',
+        },
+        {
+            'account_id': ap_account,
+            'debit': 0.0,
+            'credit': total_cost,
+            'description': f"AP — materials from {vendor}",
+            'reference_type': 'INVENTORY_RECEIPT',
+        },
+    ]
+
+
 # =============================================================================
 # Builder dispatch table
 # =============================================================================
@@ -1250,4 +1303,5 @@ _BUILDERS = {
     '_build_labor_entries': _build_labor_entries,
     '_build_material_use_entries': _build_material_use_entries,
     '_build_vendor_payment_entries': _build_vendor_payment_entries,
+    '_build_inventory_receipt_entries': _build_inventory_receipt_entries,
 }

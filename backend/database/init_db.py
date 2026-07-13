@@ -241,6 +241,13 @@ def verify_schema():
         'sim_lots',
         'sim_lot_phases',
         'sim_daily_log',
+        # Phase 3: materials & dependencies (migration 008)
+        'sim_phase_dependencies',
+        'sim_materials',
+        'sim_phase_materials',
+        'sim_purchase_orders',
+        'sim_po_lines',
+        'sim_inventory',
     ]
 
     expected_views = [

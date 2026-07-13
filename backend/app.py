@@ -221,6 +221,27 @@ def serve_simulation():
     return send_from_directory('../frontend', 'simulation.html')
 
 
+@app.route('/crew-lead')
+@login_required
+def serve_crew_lead():
+    """Serve crew lead dashboard."""
+    return send_from_directory('../frontend', 'crew-lead.html')
+
+
+@app.route('/materials-buyer')
+@login_required
+def serve_materials_buyer():
+    """Serve materials buyer dashboard."""
+    return send_from_directory('../frontend', 'materials-buyer.html')
+
+
+@app.route('/owner-dashboard')
+@login_required
+def serve_owner_dashboard():
+    """Serve owner/developer dashboard."""
+    return send_from_directory('../frontend', 'owner-dashboard.html')
+
+
 # =============================================================================
 # HEALTH CHECK API
 # =============================================================================

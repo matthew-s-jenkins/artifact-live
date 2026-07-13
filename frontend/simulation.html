@@ -156,6 +156,22 @@
                                 <a href="/projects" className="text-sm" style={{color: 'var(--color-text-muted)'}}>Projects</a>
                             </div>
                             <div className="flex items-center space-x-4">
+                                {devStatus && devStatus.status !== 'setup' && (
+                                    <React.Fragment>
+                                        <a href="/crew-lead" className="text-xs px-2 py-1 rounded"
+                                            style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-muted)'}}>
+                                            Crew Lead
+                                        </a>
+                                        <a href="/materials-buyer" className="text-xs px-2 py-1 rounded"
+                                            style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-muted)'}}>
+                                            Materials
+                                        </a>
+                                        <a href="/owner-dashboard" className="text-xs px-2 py-1 rounded"
+                                            style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-muted)'}}>
+                                            Owner
+                                        </a>
+                                    </React.Fragment>
+                                )}
                                 {devStatus && (
                                     <button onClick={handleNewSim} className="text-xs px-2 py-1 rounded"
                                         style={{backgroundColor: 'var(--color-bg-tertiary)', color: 'var(--color-text-muted)'}}>
@@ -207,20 +223,43 @@
         // =====================================================================
         // SETUP TAB — Create development, see config
         // =====================================================================
+        const PRESET_INFO = {
+            mvp: {
+                label: 'MVP',
+                desc: '10 houses, 5 crews (3 types), 5 phases per house, labor-only costing',
+                defaultBudget: 2000000,
+            },
+            full_scale: {
+                label: 'Full Scale',
+                desc: '96 houses + 4 condo buildings (212 units), 25 crews (9 types), 10 phases, materials/PO system',
+                defaultBudget: 15000000,
+            },
+        };
+
         function SetupTab({ devId, devStatus, onCreated, onRefresh, setError }) {
             const [name, setName] = useState('Oakwood Estates');
+            const [preset, setPreset] = useState('mvp');
             const [numHouses, setNumHouses] = useState(10);
             const [budget, setBudget] = useState(2000000);
             const [creating, setCreating] = useState(false);
             const [starting, setStarting] = useState(false);
 
+            const handlePresetChange = (p) => {
+                setPreset(p);
+                setBudget(PRESET_INFO[p].defaultBudget);
+                if (p === 'full_scale') setNumHouses(96);
+                else setNumHouses(10);
+            };
+
             const handleCreate = async () => {
                 setCreating(true);
                 try {
+                    const body = { name, preset, budget, start_date: '2026-01-01' };
+                    if (preset === 'mvp') body.num_houses = numHouses;
                     const r = await fetch(`${API}/api/sim/developments`, {
                         method: 'POST', credentials: 'include',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name, num_houses: numHouses, budget, start_date: '2026-01-01' }),
+                        body: JSON.stringify(body),
                     });
                     const d = await r.json();
                     if (r.ok) { onCreated(d.development_id); }
@@ -246,6 +285,23 @@
                     <div className="max-w-lg">
                         <h2 className="text-2xl font-bold mb-6" style={{color: 'var(--color-primary)'}}>New Development</h2>
                         <div className="space-y-4">
+                            {/* Preset selector */}
+                            <div>
+                                <label className="block text-sm mb-2" style={{color: 'var(--color-text-secondary)'}}>Preset</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {Object.entries(PRESET_INFO).map(([key, info]) => (
+                                        <button key={key} onClick={() => handlePresetChange(key)}
+                                            className="p-3 rounded text-left text-sm"
+                                            style={{
+                                                backgroundColor: preset === key ? 'var(--color-bg-tertiary)' : 'var(--color-bg-secondary)',
+                                                border: `2px solid ${preset === key ? 'var(--color-primary)' : 'var(--color-border-light)'}`,
+                                            }}>
+                                            <div className="font-medium" style={{color: preset === key ? 'var(--color-primary)' : 'var(--color-text)'}}>{info.label}</div>
+                                            <div className="text-xs mt-1" style={{color: 'var(--color-text-muted)'}}>{info.desc}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                             <div>
                                 <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Development Name</label>
                                 <input value={name} onChange={e => setName(e.target.value)}
@@ -253,13 +309,15 @@
                                     style={{backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text)', borderColor: 'var(--color-border)', border: '1px solid'}} />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Houses</label>
-                                    <input type="number" value={numHouses} onChange={e => setNumHouses(parseInt(e.target.value) || 1)}
-                                        min="1" max="100"
-                                        className="w-full px-3 py-2 rounded text-sm focus:outline-none"
-                                        style={{backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text)', border: '1px solid var(--color-border)'}} />
-                                </div>
+                                {preset === 'mvp' && (
+                                    <div>
+                                        <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Houses</label>
+                                        <input type="number" value={numHouses} onChange={e => setNumHouses(parseInt(e.target.value) || 1)}
+                                            min="1" max="100"
+                                            className="w-full px-3 py-2 rounded text-sm focus:outline-none"
+                                            style={{backgroundColor: 'var(--color-bg-secondary)', color: 'var(--color-text)', border: '1px solid var(--color-border)'}} />
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm mb-1" style={{color: 'var(--color-text-secondary)'}}>Budget</label>
                                     <input type="number" value={budget} onChange={e => setBudget(parseInt(e.target.value) || 0)}
@@ -268,9 +326,6 @@
                                 </div>
                             </div>
                             <div className="pt-2">
-                                <p className="text-xs mb-3" style={{color: 'var(--color-text-muted)'}}>
-                                    MVP preset: 5 crews (2 General, 1 Concrete, 2 Framing), 5 phases per house, FIFO scheduling, 3-day concrete cure.
-                                </p>
                                 <button onClick={handleCreate} disabled={creating || !name}
                                     className="px-6 py-2 rounded font-medium text-sm"
                                     style={{backgroundColor: 'var(--color-primary)', color: '#fff', opacity: creating ? 0.6 : 1}}>
@@ -447,6 +502,14 @@
                                 <MiniStat label="Labor Cost" value={fmtD(dayResult.total_labor_cost)} />
                                 <MiniStat label="Phases Done" value={dayResult.phases_completed} />
                             </div>
+                            {(dayResult.deliveries > 0 || dayResult.pos_created > 0 || dayResult.vendor_payments > 0) && (
+                                <div className="grid grid-cols-3 gap-4 mb-3">
+                                    {dayResult.deliveries > 0 && <MiniStat label="Deliveries" value={dayResult.deliveries} />}
+                                    {dayResult.pos_created > 0 && <MiniStat label="POs Created" value={dayResult.pos_created} />}
+                                    {dayResult.vendor_payments > 0 && <MiniStat label="Vendor Payments" value={dayResult.vendor_payments} />}
+                                    {dayResult.materials_consumed > 0 && <MiniStat label="Materials Used" value={fmtD(dayResult.materials_consumed)} />}
+                                </div>
+                            )}
                             {dayResult.crew_details && dayResult.crew_details.length > 0 && (
                                 <div className="text-xs space-y-1" style={{color: 'var(--color-text-muted)'}}>
                                     {dayResult.crew_details.map((c, i) => (
@@ -583,6 +646,7 @@
             const [loading, setLoading] = useState(true);
             const [selectedLot, setSelectedLot] = useState(null);
             const [lotDetail, setLotDetail] = useState(null);
+            const [filter, setFilter] = useState('all');
 
             const loadLots = () => {
                 fetch(`${API}/api/sim/developments/${devId}/lots`, { credentials: 'include' })
@@ -603,39 +667,78 @@
 
             if (loading) return <p>Loading lots...</p>;
 
+            const isCompact = lots.length > 20;
+            const hasCondos = lots.some(l => (l.label || '').startsWith('Condo'));
+            const filteredLots = filter === 'all' ? lots :
+                filter === 'house' ? lots.filter(l => !(l.label || '').startsWith('Condo')) :
+                lots.filter(l => (l.label || '').startsWith('Condo'));
+
             return (
                 <div>
-                    <h2 className="text-2xl font-bold mb-2" style={{color: 'var(--color-primary)'}}>Lot Grid</h2>
-                    <p className="text-sm mb-6" style={{color: 'var(--color-text-muted)'}}>
-                        Click a lot to drill into its phase detail.
-                    </p>
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h2 className="text-2xl font-bold" style={{color: 'var(--color-primary)'}}>Lot Grid</h2>
+                            <p className="text-sm mt-1" style={{color: 'var(--color-text-muted)'}}>
+                                {lots.length} lots — Click to drill into phase detail
+                            </p>
+                        </div>
+                        {hasCondos && (
+                            <div className="flex space-x-2">
+                                {['all', 'house', 'condo'].map(f => (
+                                    <button key={f} onClick={() => setFilter(f)}
+                                        className="px-3 py-1 rounded text-xs font-medium"
+                                        style={{
+                                            backgroundColor: filter === f ? 'var(--color-primary)' : 'var(--color-bg-tertiary)',
+                                            color: filter === f ? '#fff' : 'var(--color-text-muted)',
+                                        }}>
+                                        {f === 'all' ? `All (${lots.length})` :
+                                         f === 'house' ? `Houses (${lots.filter(l => !(l.label||'').startsWith('Condo')).length})` :
+                                         `Condos (${lots.filter(l => (l.label||'').startsWith('Condo')).length})`}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
 
-                    {/* Lot grid */}
-                    <div className="grid grid-cols-5 gap-3 mb-8">
-                        {lots.map(lot => (
-                            <button key={lot.lot_id} onClick={() => loadLotDetail(lot.lot_id)}
-                                className="p-3 rounded text-left transition-all"
-                                style={{
-                                    backgroundColor: selectedLot === lot.lot_id ? 'var(--color-bg-tertiary)' : 'var(--color-bg-secondary)',
-                                    border: `2px solid ${lot.status === 'completed' ? 'var(--color-success)' :
-                                                         lot.status === 'in_progress' ? 'var(--color-warning)' : 'var(--color-border-light)'}`,
-                                }}>
-                                <div className="text-sm font-medium">{lot.label || `Lot #${lot.lot_number}`}</div>
-                                <div className="mt-1">
-                                    <div className="h-2 rounded-full overflow-hidden" style={{backgroundColor: 'var(--color-bg-hover)'}}>
-                                        <div className="h-full progress-bar rounded-full"
-                                            style={{
-                                                width: `${lot.progress_pct}%`,
-                                                backgroundColor: lot.status === 'completed' ? 'var(--color-success)' : 'var(--color-primary)',
-                                            }} />
+                    {/* Lot grid — compact mode for 20+ lots */}
+                    <div className={`grid gap-${isCompact ? '2' : '3'} mb-8`}
+                         style={{gridTemplateColumns: `repeat(${isCompact ? 8 : 5}, minmax(0, 1fr))`}}>
+                        {filteredLots.map(lot => {
+                            const isCondo = (lot.label || '').startsWith('Condo');
+                            return (
+                                <button key={lot.lot_id} onClick={() => loadLotDetail(lot.lot_id)}
+                                    className={`${isCompact ? 'p-2' : 'p-3'} rounded text-left transition-all`}
+                                    style={{
+                                        backgroundColor: selectedLot === lot.lot_id ? 'var(--color-bg-tertiary)' : 'var(--color-bg-secondary)',
+                                        border: `2px solid ${lot.status === 'completed' ? 'var(--color-success)' :
+                                                             lot.status === 'in_progress' ? 'var(--color-warning)' : 'var(--color-border-light)'}`,
+                                        borderLeftColor: isCondo ? '#8b5cf6' : undefined,
+                                        borderLeftWidth: isCondo ? '4px' : undefined,
+                                    }}>
+                                    <div className={`${isCompact ? 'text-xs' : 'text-sm'} font-medium`}>
+                                        {isCompact ? (lot.label || '').replace('House #', '#').replace('Condo Bldg ', 'C-') : (lot.label || `Lot #${lot.lot_number}`)}
                                     </div>
-                                </div>
-                                <div className="mt-1 flex justify-between text-xs" style={{color: 'var(--color-text-muted)'}}>
-                                    <span>{lot.completed_phases}/{lot.total_phases} phases</span>
-                                    <span>{pct(lot.progress_pct)}</span>
-                                </div>
-                            </button>
-                        ))}
+                                    <div className="mt-1">
+                                        <div className={`${isCompact ? 'h-1.5' : 'h-2'} rounded-full overflow-hidden`} style={{backgroundColor: 'var(--color-bg-hover)'}}>
+                                            <div className="h-full progress-bar rounded-full"
+                                                style={{
+                                                    width: `${lot.progress_pct}%`,
+                                                    backgroundColor: lot.status === 'completed' ? 'var(--color-success)' : 'var(--color-primary)',
+                                                }} />
+                                        </div>
+                                    </div>
+                                    {!isCompact && (
+                                        <div className="mt-1 flex justify-between text-xs" style={{color: 'var(--color-text-muted)'}}>
+                                            <span>{lot.completed_phases}/{lot.total_phases}</span>
+                                            <span>{pct(lot.progress_pct)}</span>
+                                        </div>
+                                    )}
+                                    {isCompact && (
+                                        <div className="text-xs mt-0.5" style={{color: 'var(--color-text-muted)'}}>{pct(lot.progress_pct)}</div>
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
 
                     {/* Lot detail panel */}
